@@ -267,7 +267,6 @@ tbody tr.picked{background:var(--accent-soft)}
           <button class="btn primary" id="btnAssign" type="button">分配</button>
           <span class="sep"></span>
           <button class="btn" id="btnSpread" type="button">平均分給所有業務</button>
-          <button class="btn" id="btnByCons" type="button">分給各自的所屬諮詢師</button>
           <button class="btn danger" id="btnUnassign" type="button">收回分配</button>
         </div>
       </div>
@@ -737,7 +736,7 @@ function renderToolbar(){
   var a = $('assignTo'); var prev = a.value;
   a.innerHTML = '<option value="">分配給…</option>' + staff.map(function(s){ return '<option value="' + esc(s) + '">' + esc(s) + '</option>'; }).join('');
   a.value = staff.indexOf(prev) >= 0 ? prev : '';
-  ['btnAssign','btnSpread','btnByCons','btnUnassign'].forEach(function(id){ $(id).disabled = !sel; });
+  ['btnAssign','btnSpread','btnUnassign'].forEach(function(id){ $(id).disabled = !sel; });
   $('btnAssign').disabled = !sel || !a.value;
   $('btnSpread').disabled = !sel || staff.length < 1;
 }
@@ -902,11 +901,6 @@ $('btnSpread').addEventListener('click', function(){
   var ids = Array.from(selected);
   askConflict(ids, '其他人').then(function(mode){ if (mode) return doAssign(pick(ids, mode), 'spread', '', '平均分配'); });
 });
-$('btnByCons').addEventListener('click', function(){
-  var ids = Array.from(selected).filter(function(id){ var s = (byId[id] || {}).s; return s && staff.indexOf(s) >= 0 && owner[id] !== s; });
-  if (!ids.length) { toast('勾選的客人，所屬諮詢師都不在業務名單裡（或已經在他們名單裡）。先到「業務名單」加入他們。', 6000); return; }
-  askConflict(ids, '所屬諮詢師').then(function(mode){ if (mode) return doAssign(pick(ids, mode), 'byCons', '', '依所屬諮詢師分配'); });
-});
 $('btnUnassign').addEventListener('click', function(){
   var ids = Array.from(selected).filter(function(id){ return owner[id]; });
   if (!ids.length) { toast('勾選的客人都還沒分配'); return; }
@@ -932,7 +926,7 @@ function openStaff(){
   html += '</ul><div class="addRow"><input id="newStaff" type="text" maxlength="30" placeholder="輸入名字" autocomplete="off">' +
     '<input id="newStaffPw" type="text" maxlength="50" placeholder="密碼（可留空）" autocomplete="off">' +
     '<button class="btn primary" type="button" id="addStaff">加入</button></div>' +
-    '<ol class="rules"><li>名字和報表的「所屬諮詢師」完全相同，才能用「分給各自的所屬諮詢師」。</li><li>密碼留空，業務點名字就能進入；有填密碼就要輸入才能進入。</li><li>移除後，他名單上的客人會回到未分配，撥打紀錄會保留。</li></ol>';
+    '<ol class="rules"><li>密碼留空，業務點名字就能進入；有填密碼就要輸入才能進入。</li><li>移除後，他名單上的客人會回到未分配，撥打紀錄會保留。</li></ol>';
   modal(html, [{label:'完成', value:1, primary:true}]);
   function add(){
     var name = $('newStaff').value.trim(), pw = $('newStaffPw').value.trim(); if (!name) { $('newStaff').focus(); return; }
