@@ -152,9 +152,12 @@ tbody tr.picked{background:var(--accent-soft)}
   .brand h1{font-size:23px}
 }
 /* 登入畫面與其他獨立網站用的樣式 */
-.login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}
-.loginCard{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:28px 24px;width:100%;max-width:380px}
-.loginCard h1{margin:0 0 4px;font-size:22px;line-height:1.3}
+.landing{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:18px;align-items:start}
+.loginCard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px 20px;width:100%}
+.loginCard h2{margin:0 0 4px;font-size:18px;line-height:1.3}
+.nameBtns{display:flex;flex-wrap:wrap;gap:8px}
+.loginCard .nameBtns .btn{font-size:16px;padding:10px 18px;width:auto;margin-top:0}
+.nameBtns .btn[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
 .loginCard p{margin:0 0 18px;color:var(--muted);font-size:13px}
 .loginCard label{display:block;font-size:13px;font-weight:500;margin:12px 0 4px}
 .loginCard input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--bg);font-size:16px}
@@ -173,17 +176,36 @@ tbody tr.picked{background:var(--accent-soft)}
 </style>
 </head>
 <body>
-<div class="login hidden" id="loginView">
-  <form class="loginCard" id="loginForm" autocomplete="on">
-    <h1>喬琳醫美 Call 客工作台</h1>
-    <p>請用主管給你的名字和密碼登入</p>
-    <label for="lgName">名字</label>
-    <input id="lgName" name="username" autocomplete="username" required>
-    <label for="lgPw">密碼</label>
-    <input id="lgPw" name="password" type="password" autocomplete="current-password" required>
-    <button class="btn primary" type="submit" id="lgBtn">登入</button>
-    <div class="loginErr" id="lgErr" role="alert"></div>
-  </form>
+<div class="wrap hidden" id="loginView">
+  <header class="top"><div class="brand"><h1>喬琳醫美 Call 客工作台</h1><p id="pubInfo">正在讀取…</p></div></header>
+  <section class="lanes" aria-label="名單分流">
+    <div class="lanesHead"><h2>名單分流</h2><span>每位客人只會出現在一位業務的名單裡</span></div>
+    <div class="bar" id="pubBar"></div>
+    <div class="legend" id="pubLegend"></div>
+  </section>
+  <div class="landing">
+    <section class="loginCard">
+      <h2>我是業務</h2>
+      <p>點你的名字，進入你的撥打名單</p>
+      <div class="nameBtns" id="pubStaff"></div>
+      <form id="staffPwForm" class="hidden">
+        <label for="stPw" id="stPwLbl">密碼</label>
+        <input id="stPw" type="password" autocomplete="current-password">
+        <button class="btn primary" type="submit">進入</button>
+      </form>
+      <div class="loginErr" id="stErr" role="alert"></div>
+    </section>
+    <form class="loginCard" id="loginForm" autocomplete="on">
+      <h2>主管登入</h2>
+      <p>匯入報表、分配客人需要主管密碼</p>
+      <label for="lgName">名字</label>
+      <input id="lgName" name="username" autocomplete="username" required>
+      <label for="lgPw">密碼</label>
+      <input id="lgPw" name="password" type="password" autocomplete="current-password" required>
+      <button class="btn primary" type="submit" id="lgBtn">登入</button>
+      <div class="loginErr" id="lgErr" role="alert"></div>
+    </form>
+  </div>
 </div>
 
 <div class="wrap hidden" id="appView">
@@ -259,7 +281,7 @@ tbody tr.picked{background:var(--accent-soft)}
 <div class="scrim" id="scrim"><div class="dlg" id="dlg" role="dialog" aria-modal="true"></div></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="config.js?v=2"></script>
+<script src="config.js?v=3"></script>
 <script>
 /* 把客戶報表的一列，精簡成工作台需要的欄位。刻意不保留證件號碼與完整地址。 */
 var CITY_LIST = ['臺北市','新北市','桃園市','臺中市','臺南市','高雄市','基隆市','新竹市','新竹縣','苗栗縣','彰化縣','南投縣','雲林縣','嘉義市','嘉義縣','屏東縣','宜蘭縣','花蓮縣','臺東縣','澎湖縣','金門縣','連江縣'];
@@ -412,22 +434,57 @@ function api(action, data){
 /* ---------- 登入 ---------- */
 function showLogin(msg){
   $('appView').classList.add('hidden'); $('loginView').classList.remove('hidden');
-  $('lgErr').textContent = msg || '';
-  if (!API) $('lgErr').textContent = '網站還沒設定資料來源，請聯絡管理者。';
-  setTimeout(function(){ $('lgName').focus(); }, 50);
+  $('lgErr').textContent = msg || ''; $('stErr').textContent = '';
+  $('staffPwForm').classList.add('hidden'); pendingStaff = '';
+  if (!API) { $('pubInfo').textContent = '網站還沒設定資料來源，請聯絡管理者。'; return; }
+  api('public').then(function(res){
+    var sm = res.summary;
+    $('pubInfo').textContent = sm.total ? '共 ' + sm.total.toLocaleString('zh-TW') + ' 位客人' : '還沒有客戶資料';
+    var total = sm.total || 1, bar = '', leg = '<div><span class="dot" style="background:var(--pool)"></span><b>未分配</b><small>' + sm.unassigned + ' 位</small></div>';
+    sm.staff.forEach(function(s, i){
+      var col = COLORS[i % COLORS.length];
+      if (s.n) bar += '<i style="flex-basis:' + (s.n / total * 100) + '%;background:' + col + '"></i>';
+      leg += '<div><span class="dot" style="background:' + col + '"></span><b>' + esc(s.name) + '</b><small>' + s.n + ' 位，已撥 ' + s.called + '，約診 ' + s.booked + '</small></div>';
+    });
+    $('pubBar').innerHTML = bar; $('pubLegend').innerHTML = leg;
+    $('pubStaff').innerHTML = res.staff.length ? res.staff.map(function(s){ return '<button class="btn" type="button" data-name="' + esc(s.name) + '" data-pw="' + (s.pw ? 1 : 0) + '">' + esc(s.name) + '</button>'; }).join('') : '<span class="sub">還沒有業務帳號</span>';
+  }, function(err){ $('pubInfo').textContent = '讀取失敗：' + err.msg; });
 }
+var pendingStaff = '';
+function doLogin(name, pw, errEl){
+  return api('login', {name:name, password:pw}).then(function(res){
+    session = {token:res.token, name:res.name, role:res.role};
+    try { localStorage.setItem('callws-session', JSON.stringify(session)); } catch (x) {}
+    $('lgPw').value = ''; $('stPw').value = '';
+    startApp();
+  }, function(err){
+    if (err.code === 'needpw' && errEl === $('stErr')) { askStaffPw(name); }
+    errEl.textContent = err.msg;
+  });
+}
+function askStaffPw(name){
+  pendingStaff = name;
+  $('stPwLbl').textContent = name + ' 的密碼';
+  $('staffPwForm').classList.remove('hidden');
+  $('pubStaff').querySelectorAll('button').forEach(function(b){ b.setAttribute('aria-pressed', b.getAttribute('data-name') === name ? 'true' : 'false'); });
+  $('stPw').focus();
+}
+$('pubStaff').addEventListener('click', function(e){
+  var b = e.target.closest('button[data-name]'); if (!b) return;
+  var name = b.getAttribute('data-name'); $('stErr').textContent = '';
+  if (b.getAttribute('data-pw') === '1') { askStaffPw(name); return; }
+  b.disabled = true; doLogin(name, '', $('stErr')).then(function(){ b.disabled = false; });
+});
+$('staffPwForm').addEventListener('submit', function(e){
+  e.preventDefault(); if (!pendingStaff) return;
+  doLogin(pendingStaff, $('stPw').value, $('stErr'));
+});
 $('loginForm').addEventListener('submit', function(e){
   e.preventDefault();
   var name = $('lgName').value.trim(), pw = $('lgPw').value;
   if (!name || !pw) return;
   $('lgBtn').disabled = true; $('lgBtn').textContent = '登入中…'; $('lgErr').textContent = '';
-  api('login', {name:name, password:pw}).then(function(res){
-    session = {token:res.token, name:res.name, role:res.role};
-    try { localStorage.setItem('callws-session', JSON.stringify(session)); } catch (x) {}
-    $('lgPw').value = '';
-    startApp();
-  }, function(err){ $('lgErr').textContent = err.msg; })
-  .then(function(){ $('lgBtn').disabled = false; $('lgBtn').textContent = '登入'; });
+  doLogin(name, pw, $('lgErr')).then(function(){ $('lgBtn').disabled = false; $('lgBtn').textContent = '登入'; });
 });
 function logout(msg){
   if (session && !msg) api('logout').catch(function(){});
@@ -960,6 +1017,7 @@ function startApp(){
   $('whoAmI').innerHTML = '<b>' + esc(session.name) + '</b>（' + esc(session.role) + '）';
   $('btnStaff').classList.toggle('hidden', !isSup);
   $('btnImport').classList.toggle('hidden', !isSup);
+  $('btnLogout').textContent = isSup ? '登出' : '回首頁';
   $('lanesNote').textContent = isSup ? '每位客人只會出現在一位業務的名單裡' : '你只會看到分配給你的客人';
   state = {}; $('q').value = ''; selected.clear(); page = 0;
   buildFilters(); applyFilters(); renderAll();

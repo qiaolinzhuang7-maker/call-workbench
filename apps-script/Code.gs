@@ -98,6 +98,7 @@ function fail(msg, code) { var e = new Error(msg); e.userMsg = msg; e.code = cod
 function route(req) {
   var a = String(req.action || '');
   if (a === 'login') return login(req.name, req.password);
+  if (a === 'public') return publicInfo();
   var me = auth(req.token);
   if (a === 'logout') { CacheService.getScriptCache().remove('s_' + req.token); return { ok: true }; }
   if (a === 'load') return load(me, req);
@@ -149,13 +150,16 @@ function checkPw(stored, given) {
 
 function login(name, password) {
   name = String(name || '').trim(); password = String(password || '');
-  if (!name || !password) fail('請輸入名字和密碼');
+  if (!name) fail('請輸入名字');
   var cache = CacheService.getScriptCache();
   var fk = 'f_' + sha256(name.toLowerCase());
   var fails = +(cache.get(fk) || 0);
   if (fails >= MAX_FAILS) fail('密碼錯太多次，請 10 分鐘後再試');
   var acc = readAccounts().filter(function (a) { return a.name === name; })[0];
-  if (!acc || !checkPw(acc.pw, password)) {
+  // 業務的密碼欄留空 → 不用密碼；主管一定要密碼
+  var open = acc && acc.role === '業務' && !acc.pw;
+  if (acc && !open && !password) fail(acc.role === '主管' && !acc.pw ? '主管帳號必須在試算表設定密碼' : '請輸入密碼', 'needpw');
+  if (!acc || (!open && !checkPw(acc.pw, password))) {
     cache.put(fk, String(fails + 1), LOCKOUT_SEC);
     Utilities.sleep(600);
     fail('名字或密碼不正確');
@@ -178,6 +182,14 @@ function auth(token) {
   if (!acc) { cache.remove('s_' + token); fail('這個帳號已停用或權限已變更，請重新登入', 'auth'); }
   cache.put('s_' + token, raw, SESSION_SEC);
   return s;
+}
+
+/* ================= 不用登入的首頁資訊：只有人數，沒有客戶資料 ================= */
+function publicInfo() {
+  var accs = readAccounts();
+  var st = readState();
+  var staff = accs.filter(function (a) { return a.role === '業務'; }).map(function (a) { return { name: a.name, pw: !!a.pw }; });
+  return { ok: true, staff: staff, summary: summarize(st) };
 }
 
 /* ================= 讀取資料 ================= */
