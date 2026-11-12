@@ -1,0 +1,976 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>喬琳醫美 Call 客工作台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#F5F4F7; --surface:#FFFFFF; --panel:#EDEAF1; --line:#DAD4E1; --ink:#29232F; --muted:#6C6475;
+  --accent:#5B376B; --accent-ink:#FFFFFF; --accent-soft:#EFE6F3;
+  --ok:#2C7A69; --ok-soft:#E2F2EE; --warn:#9A620F; --warn-soft:#FBEFD9; --bad:#A9443D; --bad-soft:#F8E4E2;
+  --pool:#CFC8D6; --focus:#3D6FD1;
+  color-scheme: light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#17141B; --surface:#211D26; --panel:#2A2530; --line:#3A3342; --ink:#EEE9F3; --muted:#A79DB1;
+    --accent:#CBA6DA; --accent-ink:#1D1622; --accent-soft:#3A2D42;
+    --ok:#73C7B2; --ok-soft:#1F3632; --warn:#E3AD5C; --warn-soft:#3A2E1C; --bad:#EC8E86; --bad-soft:#3D2323;
+    --pool:#4A4254; --focus:#8FB1F2;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#17141B; --surface:#211D26; --panel:#2A2530; --line:#3A3342; --ink:#EEE9F3; --muted:#A79DB1;
+  --accent:#CBA6DA; --accent-ink:#1D1622; --accent-soft:#3A2D42;
+  --ok:#73C7B2; --ok-soft:#1F3632; --warn:#E3AD5C; --warn-soft:#3A2E1C; --bad:#EC8E86; --bad-soft:#3D2323;
+  --pool:#4A4254; --focus:#8FB1F2;
+  color-scheme: dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;font-variant-numeric:tabular-nums}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.wrap{max-width:1440px;margin:0 auto;padding:20px clamp(12px,3vw,32px) 48px}
+
+/* 頁首 */
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px 24px;justify-content:space-between;margin-bottom:18px}
+.brand h1{margin:0;font-size:28px;line-height:1.2;font-weight:700;letter-spacing:.02em}
+.brand p{margin:4px 0 0;color:var(--muted);font-size:13px}
+.topRight{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.seg{display:inline-flex;background:var(--panel);border-radius:999px;padding:3px}
+.seg button{border:0;background:transparent;padding:6px 14px;border-radius:999px;cursor:pointer;color:var(--muted);font-weight:500}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(40,20,50,.12)}
+.btn{border:1px solid var(--line);background:var(--surface);padding:7px 14px;border-radius:8px;cursor:pointer;font-weight:500;white-space:nowrap}
+.btn:hover:not(:disabled){border-color:var(--muted)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.quiet{border-color:transparent;background:transparent;color:var(--muted);padding:7px 8px}
+.btn.danger{color:var(--bad)}
+
+/* 分流條：每位客人只會在一條線上 */
+.lanes{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px 14px;margin-bottom:18px}
+.lanesHead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.lanesHead h2{margin:0;font-size:15px;font-weight:700}
+.lanesHead span{color:var(--muted);font-size:13px}
+.bar{display:flex;height:22px;border-radius:6px;overflow:hidden;background:var(--pool)}
+.bar i{display:block;height:100%;min-width:2px;transition:flex-basis .4s ease}
+.bar i+i{box-shadow:inset 2px 0 0 var(--surface)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:12px;font-size:13px}
+.legend div{display:flex;align-items:center;gap:7px}
+.legend b{font-weight:500}
+.legend small{color:var(--muted);font-size:12px}
+.dot{width:10px;height:10px;border-radius:3px;flex:none}
+@media (prefers-reduced-motion: reduce){.bar i{transition:none}}
+
+/* 業務身分列 */
+.meBar{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center;background:var(--accent-soft);border-radius:12px;padding:12px 16px;margin-bottom:18px}
+.meBar label{font-weight:700}
+.meBar select{padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);min-width:180px}
+.meStats{display:flex;gap:18px;flex-wrap:wrap;font-size:14px;color:var(--muted)}
+.meStats strong{color:var(--ink);font-size:18px;margin-right:3px}
+
+/* 主要版面 */
+.work{display:grid;grid-template-columns:270px minmax(0,1fr);gap:18px;align-items:start}
+.filters{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:4px 16px 16px;position:sticky;top:calc(12px + env(safe-area-inset-top,0px));max-height:calc(100vh - 24px);overflow:auto}
+.filters summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:12px 0 8px;font-weight:700}
+.filters summary::-webkit-details-marker{display:none}
+.filters summary .btn{font-weight:400;font-size:13px}
+.search{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);margin-bottom:6px}
+.fgroup{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
+.fgroup h3{margin:0 0 6px;font-size:12px;font-weight:500;color:var(--muted)}
+.field{display:grid;grid-template-columns:84px minmax(0,1fr);align-items:center;gap:8px;margin:6px 0}
+.field label{font-size:13px}
+.field select{width:100%;padding:5px 6px;border:1px solid var(--line);border-radius:7px;background:var(--bg);font-size:13px;min-width:0}
+.field select.on{border-color:var(--accent);background:var(--accent-soft);font-weight:500}
+
+.results{background:var(--surface);border:1px solid var(--line);border-radius:14px;min-width:0}
+.toolbar{padding:14px 16px;border-bottom:1px solid var(--line);display:grid;gap:12px}
+.trow{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.count{font-size:14px;margin-right:auto}
+.count strong{font-size:20px;margin:0 2px}
+.count .sel{color:var(--accent);font-weight:700}
+.actions{background:var(--panel);border-radius:10px;padding:10px 12px}
+.actions .lbl{font-size:13px;color:var(--muted)}
+.actions select,.trow select{padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--surface)}
+.sep{width:1px;align-self:stretch;background:var(--line)}
+
+.tablewrap{overflow:auto;max-height:calc(100vh - 230px)}
+table{border-collapse:separate;border-spacing:0;width:100%;font-size:14px}
+th,td{padding:9px 9px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle}
+th{position:sticky;top:0;background:var(--surface);font-size:12px;font-weight:500;color:var(--muted);z-index:1}
+td.num,th.num{text-align:right}
+tbody tr:hover{background:var(--bg)}
+tbody tr.picked{background:var(--accent-soft)}
+.cb{width:18px;height:18px;accent-color:var(--accent);cursor:pointer}
+.nm{font-weight:500}
+.sub{display:block;font-size:12px;color:var(--muted)}
+.tel{color:inherit;text-decoration:none;border-bottom:1px dashed var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:1px 9px;border-radius:999px;font-size:12px;background:var(--panel);color:var(--ink)}
+.chip.none{background:transparent;color:var(--muted);padding-left:0}
+.tone-ok{background:var(--ok-soft);color:var(--ok)}
+.tone-warn{background:var(--warn-soft);color:var(--warn)}
+.tone-bad{background:var(--bad-soft);color:var(--bad)}
+.tone-accent{background:var(--accent-soft);color:var(--accent)}
+.tone-muted{background:var(--panel);color:var(--muted)}
+.rsel{padding:5px 6px;border-radius:7px;border:1px solid var(--line);background:var(--bg);font-size:13px}
+.note{width:220px;padding:5px 8px;border-radius:7px;border:1px solid var(--line);background:var(--bg);font-size:13px}
+.pager{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;font-size:13px;color:var(--muted);flex-wrap:wrap}
+.empty{padding:56px 24px;text-align:center;color:var(--muted);max-width:520px;margin:0 auto}
+.empty strong{display:block;color:var(--ink);font-size:17px;margin-bottom:6px}
+
+/* 對話框與提示 */
+.scrim{position:fixed;inset:0;background:rgba(20,10,25,.45);display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
+.scrim.show{display:flex}
+.dlg{background:var(--surface);border-radius:14px;max-width:520px;width:100%;padding:22px;max-height:85vh;overflow:auto;box-shadow:0 20px 50px rgba(20,10,30,.3)}
+.dlg h3{margin:0 0 8px;font-size:18px}
+.dlg p{margin:0 0 10px;color:var(--muted)}
+.dlgBtns{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:18px}
+.staffList{list-style:none;padding:0;margin:8px 0 14px}
+.staffList li{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.staffList li span.c{margin-left:auto;color:var(--muted);font-size:13px}
+.addRow{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.addRow input,.addRow select{flex:1;min-width:140px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;z-index:60;max-width:calc(100% - 32px);opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+.hidden{display:none !important}
+.rules{font-size:13px;color:var(--muted);margin:10px 0 0;padding-left:18px}
+.rules li{margin:2px 0}
+
+@media (max-width: 900px){
+  .work{grid-template-columns:1fr}
+  .filters{position:static;max-height:none}
+  .tablewrap{max-height:none}
+  .brand h1{font-size:23px}
+}
+/* 登入畫面與其他獨立網站用的樣式 */
+.login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}
+.loginCard{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:28px 24px;width:100%;max-width:380px}
+.loginCard h1{margin:0 0 4px;font-size:22px;line-height:1.3}
+.loginCard p{margin:0 0 18px;color:var(--muted);font-size:13px}
+.loginCard label{display:block;font-size:13px;font-weight:500;margin:12px 0 4px}
+.loginCard input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--bg);font-size:16px}
+.loginCard .btn{width:100%;margin-top:20px;padding:10px;font-size:16px}
+.loginErr{color:var(--bad);font-size:13px;min-height:20px;margin-top:10px}
+.who{font-size:13px;color:var(--muted)}
+.who b{color:var(--ink);font-weight:500}
+.busy{opacity:.6;pointer-events:none}
+.filters,.filters *{box-sizing:border-box}
+.filters{overflow-x:hidden}
+@media (max-width: 600px){
+  .note{width:160px}
+  .actions .sep{display:none}
+  .topRight .btn{padding:6px 10px}
+}
+</style>
+</head>
+<body>
+<div class="login hidden" id="loginView">
+  <form class="loginCard" id="loginForm" autocomplete="on">
+    <h1>喬琳醫美 Call 客工作台</h1>
+    <p>請用主管給你的名字和密碼登入</p>
+    <label for="lgName">名字</label>
+    <input id="lgName" name="username" autocomplete="username" required>
+    <label for="lgPw">密碼</label>
+    <input id="lgPw" name="password" type="password" autocomplete="current-password" required>
+    <button class="btn primary" type="submit" id="lgBtn">登入</button>
+    <div class="loginErr" id="lgErr" role="alert"></div>
+  </form>
+</div>
+
+<div class="wrap hidden" id="appView">
+  <header class="top">
+    <div class="brand">
+      <h1>喬琳醫美 Call 客工作台</h1>
+      <p id="dataInfo">正在讀取名單…</p>
+    </div>
+    <div class="topRight">
+      <span class="who" id="whoAmI"></span>
+      <button class="btn hidden" id="btnStaff" type="button">業務帳號</button>
+      <button class="btn hidden" id="btnImport" type="button">匯入客戶報表</button>
+      <button class="btn quiet" id="btnRefresh" type="button" title="重新整理名單">重新整理</button>
+      <button class="btn quiet" id="btnLogout" type="button">登出</button>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" multiple hidden>
+    </div>
+  </header>
+
+  <section class="lanes" id="lanes" aria-label="名單分流">
+    <div class="lanesHead"><h2>名單分流</h2><span id="lanesNote">每位客人只會出現在一位業務的名單裡</span></div>
+    <div class="bar" id="bar"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section class="meBar hidden" id="meBar">
+    <div class="meStats" id="meStats"></div>
+  </section>
+
+  <main class="work">
+    <details class="filters" id="filterBox" open>
+      <summary><span>篩選條件 <span id="fCount"></span></span><button class="btn quiet" id="btnReset" type="button">全部清除</button></summary>
+      <input class="search" id="q" type="search" placeholder="搜尋姓名、電話或會員號" aria-label="搜尋姓名、電話或會員號">
+      <div id="filterFields"></div>
+    </details>
+
+    <section class="results">
+      <div class="toolbar">
+        <div class="trow">
+          <div class="count" id="countLine"></div>
+          <label for="sortSel" style="font-size:13px;color:var(--muted)">排序</label>
+          <select id="sortSel">
+            <option value="tot">消費總額 高到低</option>
+            <option value="lc">最近消費 新到舊</option>
+            <option value="lcOld">最近消費 舊到新</option>
+            <option value="lv">最近到訪 新到舊</option>
+            <option value="age">年齡 小到大</option>
+            <option value="id">會員號</option>
+          </select>
+        </div>
+        <div class="trow" id="selRow">
+          <button class="btn" id="btnSelAll" type="button">全選篩選結果</button>
+          <button class="btn quiet" id="btnSelClear" type="button">清除勾選</button>
+          <span class="sep"></span>
+          <button class="btn" id="btnExport" type="button">下載名單 Excel</button>
+        </div>
+        <div class="trow actions" id="supActions">
+          <span class="lbl">把勾選的客人</span>
+          <select id="assignTo" aria-label="分配給哪位業務"></select>
+          <button class="btn primary" id="btnAssign" type="button">分配</button>
+          <span class="sep"></span>
+          <button class="btn" id="btnSpread" type="button">平均分給所有業務</button>
+          <button class="btn" id="btnByCons" type="button">分給各自的所屬諮詢師</button>
+          <button class="btn danger" id="btnUnassign" type="button">收回分配</button>
+        </div>
+      </div>
+      <div class="tablewrap"><table id="tbl"></table></div>
+      <div id="emptyBox"></div>
+      <div class="pager" id="pager"></div>
+    </section>
+  </main>
+</div>
+
+<div class="scrim" id="scrim"><div class="dlg" id="dlg" role="dialog" aria-modal="true"></div></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="config.js"></script>
+<script>
+/* 把客戶報表的一列，精簡成工作台需要的欄位。刻意不保留證件號碼與完整地址。 */
+var CITY_LIST = ['臺北市','新北市','桃園市','臺中市','臺南市','高雄市','基隆市','新竹市','新竹縣','苗栗縣','彰化縣','南投縣','雲林縣','嘉義市','嘉義縣','屏東縣','宜蘭縣','花蓮縣','臺東縣','澎湖縣','金門縣','連江縣'];
+var CITY_ALIAS = {'臺中縣':'臺中市','臺北縣':'新北市','高雄縣':'高雄市','臺南縣':'臺南市','桃園縣':'桃園市','彰化市':'彰化縣','員林市':'彰化縣','花蓮市':'花蓮縣','臺東市':'臺東縣','苗栗市':'苗栗縣','頭份市':'苗栗縣','南投市':'南投縣','屏東市':'屏東縣','宜蘭市':'宜蘭縣','竹北市':'新竹縣','斗六市':'雲林縣','太保市':'嘉義縣','朴子市':'嘉義縣'};
+var STATUS_MAP = {'活跃会员':'活躍會員','新会员':'新會員','深度睡眠会员':'深度睡眠會員','睡眠会员':'睡眠會員'};
+
+function slimPad(n){ return (n < 10 ? '0' : '') + n; }
+function slimDate(v){
+  if (v === null || v === undefined || v === '') return '';
+  if (v instanceof Date && !isNaN(v)) return v.getFullYear() + '-' + slimPad(v.getMonth()+1) + '-' + slimPad(v.getDate());
+  if (typeof v === 'number') { // Excel 序號日期
+    var d = new Date(Math.round((v - 25569) * 86400000));
+    return d.getUTCFullYear() + '-' + slimPad(d.getUTCMonth()+1) + '-' + slimPad(d.getUTCDate());
+  }
+  var m = String(v).match(/(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
+  if (!m) return '';
+  return m[1] + '-' + slimPad(+m[2]) + '-' + slimPad(+m[3]);
+}
+function slimNum(v){
+  if (v === null || v === undefined || v === '') return 0;
+  var n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.\-]/g, ''));
+  return isFinite(n) ? Math.round(n) : 0;
+}
+function slimPhone(v){
+  if (v === null || v === undefined || v === '') return '';
+  var s = typeof v === 'number' ? String(Math.round(v)) : String(v).replace(/\D/g, '');
+  if (s.indexOf('886') === 0 && s.length === 12) s = '0' + s.slice(3);
+  if (s.length === 9 && s.charAt(0) === '9') s = '0' + s;
+  return s;
+}
+function slimText(v){ return (v === null || v === undefined) ? '' : String(v).trim(); }
+function slimPlace(addr){
+  var a = slimText(addr).replace(/台/g, '臺');
+  if (!a) return ['', ''];
+  var city = '', rest = '';
+  for (var i = 0; i < CITY_LIST.length; i++) {
+    var p = a.indexOf(CITY_LIST[i]);
+    if (p >= 0) { city = CITY_LIST[i]; rest = a.slice(p + CITY_LIST[i].length); break; }
+  }
+  if (!city) {
+    for (var k in CITY_ALIAS) {
+      var q = a.indexOf(k);
+      if (q >= 0) {
+        city = CITY_ALIAS[k];
+        if (/[縣]$/.test(k)) rest = a.slice(q + k.length);
+        else return [city, k];
+        break;
+      }
+    }
+  }
+  if (!city) return ['', ''];
+  var m = rest.match(/^([^\d\s路街段巷弄號]{1,3}?[區鄉鎮市])/);
+  return [city, m ? m[1] : ''];
+}
+function slimRow(r){
+  var id = slimText(r['會員號']);
+  if (!id) return null;
+  var tag = slimText(r['行为标签'] || r['行為標籤']);
+  var deal = tag.indexOf('多次成交') >= 0 ? '多次成交' : tag.indexOf('首次成交') >= 0 ? '首次成交' : tag.indexOf('未成交') >= 0 ? '未成交' : '';
+  var place = slimPlace(r['地址']);
+  var st = slimText(r['狀態']);
+  var o = {
+    id: id,
+    n: slimText(r['姓名']),
+    g: slimText(r['性別']),
+    ph: slimPhone(r['手機號']),
+    b: slimDate(r['生日']),
+    c: place[0],
+    d: place[1],
+    s: slimText(r['所屬諮詢師']),
+    dr: slimText(r['主診醫生']),
+    deal: deal,
+    st: STATUS_MAP[st] || st,
+    vt: slimText(r['最近到訪類型']),
+    fv: slimDate(r['首次到訪時間']),
+    lv: slimDate(r['最近到訪時間']),
+    lc: slimDate(r['最近消費時間']),
+    la: slimNum(r['最近消費金額']),
+    tot: slimNum(r['消費總金額']),
+    owe: slimNum(r['欠費金額']),
+    sv: slimNum(r['储值金余额'] !== undefined ? r['储值金余额'] : r['儲值金餘額']),
+    ch0: slimText(r['渠道分類']),
+    ch1: slimText(r['一級渠道']),
+    ch2: slimText(r['二級渠道']),
+    cb: slimDate(r['最近回訪時間']),
+    ln: slimText(r['印象標籤']).indexOf('LINE綁定') >= 0 ? 1 : 0
+  };
+  if (tag.indexOf('欠费') >= 0 && !o.owe) o.owe = 1;
+  for (var key in o) { if (o[key] === '' || o[key] === 0) delete o[key]; }
+  o.id = id;
+  return o;
+}
+function slimRows(rawRows){
+  var map = {};
+  for (var i = 0; i < rawRows.length; i++) {
+    var s = slimRow(rawRows[i]);
+    if (s) map[s.id] = s;
+  }
+  return Object.keys(map).sort().map(function(k){ return map[k]; });
+}
+
+</script>
+<script>
+(function(){
+'use strict';
+var API = (window.CALLWS_CONFIG && window.CALLWS_CONFIG.api) || '';
+var RESULTS = [
+  {v:'未接通', t:'muted'}, {v:'已接通-有興趣', t:'ok'}, {v:'已接通-考慮中', t:'warn'},
+  {v:'已接通-無意願', t:'muted'}, {v:'已約診', t:'accent'}, {v:'空號/錯號', t:'bad'}, {v:'請勿再撥', t:'bad'}
+];
+var TONE = {}; RESULTS.forEach(function(r){ TONE[r.v] = r.t; });
+var COLORS = ['#7A4E9A','#D9577A','#E09A1A','#2B9384','#3D78B0','#B36A86','#7F9246','#C8702A','#5867B5','#9A5B3C'];
+var NUM_KEYS = {la:1, tot:1, owe:1, sv:1, ln:1};
+var PAGE = 100, POLL_MS = 60000;
+var today = new Date(); today.setHours(0,0,0,0);
+var TODAY_STR = slimDate(today);
+var $ = function(id){ return document.getElementById(id); };
+
+var session = null;   // {token, name, role}
+try { session = JSON.parse(localStorage.getItem('callws-session') || 'null'); } catch (e) {}
+var isSup = false, view = 'sup';
+var staff = [], summary = null, meta = {}, rev = '';
+var rows = [], byId = {}, owner = {}, ownerAt = {}, lastRes = {}, myRes = {};
+var filtered = [], selected = new Set(), page = 0, loadedOnce = false;
+var state = {};
+
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function toast(msg, ms){ var t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(function(){ t.classList.remove('show'); }, ms || 3200); }
+function daysSince(d){ if (!d) return null; var t = new Date(String(d).slice(0,10) + 'T00:00:00'); if (isNaN(t)) return null; return Math.round((today - t) / 86400000); }
+function money(n){ return n ? n.toLocaleString('zh-TW') : '0'; }
+function staffIdx(k){ return staff.indexOf(k); }
+function staffColor(k){ var i = staffIdx(k); return i >= 0 ? COLORS[i % COLORS.length] : 'var(--pool)'; }
+
+/* ---------- 與 Apps Script 溝通 ---------- */
+function api(action, data){
+  if (!API) return Promise.reject({msg:'網站還沒設定資料來源（config.js）'});
+  var body = Object.assign({action:action, token:session && session.token}, data || {});
+  // 用 text/plain 送出，避免瀏覽器的跨網域預檢
+  return fetch(API, {method:'POST', body:JSON.stringify(body), redirect:'follow'})
+    .then(function(r){ if (!r.ok) throw {msg:'連線失敗（' + r.status + '）'}; return r.json(); }, function(){ throw {msg:'連不上伺服器，請檢查網路'}; })
+    .then(function(res){
+      if (!res || !res.ok) {
+        if (res && res.code === 'auth' && action !== 'login') { logout(res.err); }
+        throw {msg:(res && res.err) || '發生錯誤', code:res && res.code};
+      }
+      return res;
+    });
+}
+
+/* ---------- 登入 ---------- */
+function showLogin(msg){
+  $('appView').classList.add('hidden'); $('loginView').classList.remove('hidden');
+  $('lgErr').textContent = msg || '';
+  if (!API) $('lgErr').textContent = '網站還沒設定資料來源，請聯絡管理者。';
+  setTimeout(function(){ $('lgName').focus(); }, 50);
+}
+$('loginForm').addEventListener('submit', function(e){
+  e.preventDefault();
+  var name = $('lgName').value.trim(), pw = $('lgPw').value;
+  if (!name || !pw) return;
+  $('lgBtn').disabled = true; $('lgBtn').textContent = '登入中…'; $('lgErr').textContent = '';
+  api('login', {name:name, password:pw}).then(function(res){
+    session = {token:res.token, name:res.name, role:res.role};
+    try { localStorage.setItem('callws-session', JSON.stringify(session)); } catch (x) {}
+    $('lgPw').value = '';
+    startApp();
+  }, function(err){ $('lgErr').textContent = err.msg; })
+  .then(function(){ $('lgBtn').disabled = false; $('lgBtn').textContent = '登入'; });
+});
+function logout(msg){
+  if (session && !msg) api('logout').catch(function(){});
+  session = null; try { localStorage.removeItem('callws-session'); } catch (x) {}
+  rows = []; byId = {}; owner = {}; ownerAt = {}; lastRes = {}; myRes = {}; staff = []; summary = null; meta = {}; rev = ''; loadedOnce = false;
+  selected.clear(); state = {};
+  clearInterval(pollTimer);
+  $('tbl').innerHTML = '';
+  showLogin(msg);
+}
+$('btnLogout').addEventListener('click', function(){ logout(); });
+
+/* ---------- 對話框 ---------- */
+function modal(html, buttons){
+  return new Promise(function(resolve){
+    var d = $('dlg'); d.innerHTML = html;
+    var box = document.createElement('div'); box.className = 'dlgBtns';
+    buttons.forEach(function(b){
+      var el = document.createElement('button'); el.type = 'button';
+      el.className = 'btn' + (b.primary ? ' primary' : '') + (b.danger ? ' danger' : '');
+      el.textContent = b.label;
+      el.onclick = function(){ close(); resolve(b.value); };
+      box.appendChild(el);
+    });
+    d.appendChild(box);
+    $('scrim').classList.add('show');
+    var first = box.querySelector('.primary') || box.lastChild; if (first) first.focus();
+    function onKey(e){ if (e.key === 'Escape') { close(); resolve(null); } }
+    document.addEventListener('keydown', onKey);
+    function close(){ $('scrim').classList.remove('show'); document.removeEventListener('keydown', onKey); }
+  });
+}
+
+/* ---------- 讀取與整理資料 ---------- */
+function applyLoad(res){
+  rev = res.rev;
+  staff = res.staff || [];
+  summary = res.summary || null;
+  meta = res.meta || {};
+  if (res.cust) {
+    var keys = res.keys;
+    rows = res.cust.map(function(arr){
+      var o = {};
+      for (var i = 0; i < keys.length; i++) { var v = arr[i]; if (v !== '' && v != null) o[keys[i]] = NUM_KEYS[keys[i]] ? (+v || 0) : v; }
+      if (o.b) {
+        var bd = new Date(o.b + 'T00:00:00');
+        if (!isNaN(bd)) {
+          var a = today.getFullYear() - bd.getFullYear();
+          if (today.getMonth() < bd.getMonth() || (today.getMonth() === bd.getMonth() && today.getDate() < bd.getDate())) a--;
+          o.age = (a > 0 && a < 110) ? a : null;
+          o.bm = bd.getMonth() + 1;
+        }
+      }
+      o.lvD = daysSince(o.lv); o.lcD = daysSince(o.lc);
+      return o;
+    });
+    byId = {}; rows.forEach(function(r){ byId[r.id] = r; });
+    rowsAt = meta.custAt || '';
+  }
+  owner = {}; ownerAt = {};
+  (res.asg || []).forEach(function(a){ owner[a[0]] = a[1]; ownerAt[a[0]] = a[2]; });
+  lastRes = {}; myRes = {};
+  (res.res || []).forEach(function(r){
+    var e = {by:r[1], r:r[2], n:r[3], c:+r[4] || 0, at:r[5]};
+    if (r[1] === session.name) myRes[r[0]] = e;
+    if (e.r && (!lastRes[r[0]] || e.at > lastRes[r[0]].at)) lastRes[r[0]] = e;
+    else if (!e.r && e.n && !lastRes[r[0]]) lastRes[r[0]] = e;
+  });
+  loadedOnce = true;
+}
+var rowsAt = '';
+var loading = false;
+function reload(opts){
+  opts = opts || {};
+  if (loading) return Promise.resolve();
+  loading = true;
+  var req = {custAt: isSup ? rowsAt : ''};
+  if (opts.quiet && rev) req.rev = rev;
+  return api('load', req).then(function(res){
+    if (res.same) return;
+    applyLoad(res);
+    buildFilters(); applyFilters(); renderAll();
+  }, function(err){
+    if (!opts.quiet) toast(err.msg, 5000);
+    if (!loadedOnce) { $('dataInfo').textContent = '名單讀取失敗：' + err.msg; }
+  }).then(function(){ loading = false; });
+}
+$('btnRefresh').addEventListener('click', function(){ reload().then(function(){ toast('已更新'); }); });
+
+var pollTimer = null;
+function startPolling(){
+  clearInterval(pollTimer);
+  pollTimer = setInterval(function(){ if (document.visibilityState === 'visible' && session) reload({quiet:true}); }, POLL_MS);
+}
+document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'visible' && session && loadedOnce) reload({quiet:true}); });
+
+function lastContactDays(r){
+  var a = lastRes[r.id] && lastRes[r.id].r ? daysSince(lastRes[r.id].at) : null;
+  var b = daysSince(r.cb);
+  if (a === null) return b; if (b === null) return a; return Math.min(a, b);
+}
+
+/* ---------- 篩選欄位 ---------- */
+function agoOpts(noneLabel){ return [['0-90','3 個月內'],['90-180','3–6 個月'],['180-365','6–12 個月'],['365-730','1–2 年'],['730-99999','2 年以上'],['none', noneLabel]]; }
+function inAgo(d, v){ if (v === 'none') return d === null; if (d === null) return false; var p = v.split('-'); return d >= +p[0] && d < +p[1]; }
+function countOpts(field, dep){
+  var cnt = {};
+  baseRows().forEach(function(r){ if (dep && !dep(r)) return; var v = r[field]; if (v) cnt[v] = (cnt[v] || 0) + 1; });
+  return Object.keys(cnt).sort(function(a, b){ return cnt[b] - cnt[a]; }).map(function(v){ return [v, v + '（' + cnt[v] + '）']; });
+}
+var FILTERS = [
+  {g:'分配與撥打', key:'asg', label:'分配狀態', sup:true,
+    opts:function(){ return [['__none','未分配'],['__any','已分配']].concat(staff.map(function(s){ return [s, '給 ' + s]; })); },
+    test:function(r, v){ var o = owner[r.id]; return v === '__none' ? !o : v === '__any' ? !!o : o === v; }},
+  {g:'分配與撥打', key:'res', label:'撥打結果',
+    opts:function(){ return [['__none','還沒撥打']].concat(RESULTS.map(function(x){ return [x.v, x.v]; })); },
+    test:function(r, v){ var e = view === 'staff' ? myRes[r.id] : lastRes[r.id]; var cur = e && e.r ? e.r : ''; return v === '__none' ? !cur : cur === v; }},
+  {g:'分配與撥打', key:'prot', label:'近期聯繫過',
+    opts:function(){ return [['7','排除 7 天內'],['14','排除 14 天內'],['30','排除 30 天內'],['60','排除 60 天內']]; },
+    test:function(r, v){ var d = lastContactDays(r); return d === null || d >= +v; }},
+  {g:'客戶關係', key:'s', label:'所屬諮詢師', opts:function(){ return countOpts('s'); }, test:function(r, v){ return r.s === v; }},
+  {g:'客戶關係', key:'deal', label:'成交狀態', opts:function(){ return [['未成交','未成交'],['首次成交','首次成交'],['多次成交','多次成交']]; }, test:function(r, v){ return r.deal === v; }},
+  {g:'客戶關係', key:'st', label:'會員狀態', opts:function(){ return countOpts('st'); }, test:function(r, v){ return r.st === v; }},
+  {g:'客戶關係', key:'vt', label:'最近到訪類型', opts:function(){ return countOpts('vt'); }, test:function(r, v){ return r.vt === v; }},
+  {g:'客戶關係', key:'lv', label:'最近到訪', opts:function(){ return agoOpts('沒有到訪紀錄'); }, test:function(r, v){ return inAgo(r.lvD, v); }},
+  {g:'渠道', key:'ch0', label:'渠道分類', opts:function(){ return countOpts('ch0'); }, test:function(r, v){ return r.ch0 === v; }},
+  {g:'渠道', key:'ch1', label:'一級渠道', dep:'ch0', opts:function(){ var p = state.ch0; return countOpts('ch1', p ? function(r){ return r.ch0 === p; } : null); }, test:function(r, v){ return r.ch1 === v; }},
+  {g:'渠道', key:'ch2', label:'二級渠道', dep:'ch1', opts:function(){ var p0 = state.ch0, p1 = state.ch1; return countOpts('ch2', (p0 || p1) ? function(r){ return (!p0 || r.ch0 === p0) && (!p1 || r.ch1 === p1); } : null); }, test:function(r, v){ return r.ch2 === v; }},
+  {g:'消費', key:'lc', label:'最近消費', opts:function(){ return agoOpts('沒有消費紀錄'); }, test:function(r, v){ return inAgo(r.lcD, v); }},
+  {g:'消費', key:'tot', label:'消費總額', opts:function(){ return [['0-1','0 元'],['1-10000','1 – 9,999'],['10000-50000','1 萬 – 5 萬'],['50000-100000','5 萬 – 10 萬'],['100000-1e12','10 萬以上']]; },
+    test:function(r, v){ var p = v.split('-'), t = r.tot || 0; return t >= +p[0] && t < +p[1]; }},
+  {g:'消費', key:'owe', label:'欠費', opts:function(){ return [['y','有欠費'],['n','沒有欠費']]; }, test:function(r, v){ return v === 'y' ? !!r.owe : !r.owe; }},
+  {g:'個人資料', key:'g', label:'性別', opts:function(){ return countOpts('g'); }, test:function(r, v){ return r.g === v; }},
+  {g:'個人資料', key:'age', label:'年齡層', opts:function(){ return [['0-25','25 歲以下'],['25-35','25–34 歲'],['35-45','35–44 歲'],['45-55','45–54 歲'],['55-65','55–64 歲'],['65-200','65 歲以上'],['none','沒有生日資料']]; },
+    test:function(r, v){ if (v === 'none') return r.age == null; if (r.age == null) return false; var p = v.split('-'); return r.age >= +p[0] && r.age < +p[1]; }},
+  {g:'個人資料', key:'bm', label:'生日月份', opts:function(){ var m = today.getMonth() + 1, o = []; for (var i = 1; i <= 12; i++) o.push([String(i), i + ' 月' + (i === m ? '（本月）' : i === (m % 12) + 1 ? '（下個月）' : '')]); return o; }, test:function(r, v){ return r.bm === +v; }},
+  {g:'個人資料', key:'c', label:'縣市', opts:function(){ return countOpts('c'); }, test:function(r, v){ return r.c === v; }},
+  {g:'個人資料', key:'ln', label:'LINE 綁定', opts:function(){ return [['y','已綁定'],['n','未綁定']]; }, test:function(r, v){ return v === 'y' ? !!r.ln : !r.ln; }}
+];
+
+function baseRows(){ return view === 'staff' ? rows.filter(function(r){ return owner[r.id] === session.name; }) : rows; }
+
+function buildFilters(){
+  var box = $('filterFields'); var html = ''; var group = '';
+  FILTERS.forEach(function(f){
+    if (f.sup && view !== 'sup') return;
+    if (f.g !== group) { if (group) html += '</div>'; group = f.g; html += '<div class="fgroup"><h3>' + esc(group) + '</h3>'; }
+    var cur = state[f.key] || '';
+    var opts = f.opts();
+    if (cur && !opts.some(function(o){ return o[0] === cur; })) { delete state[f.key]; cur = ''; }
+    html += '<div class="field"><label for="f_' + f.key + '">' + esc(f.label) + '</label><select id="f_' + f.key + '" data-key="' + f.key + '"' + (cur ? ' class="on"' : '') + '><option value="">全部</option>';
+    opts.forEach(function(o){ html += '<option value="' + esc(o[0]) + '"' + (o[0] === cur ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; });
+    html += '</select></div>';
+  });
+  if (group) html += '</div>';
+  box.innerHTML = html;
+  var n = Object.keys(state).filter(function(k){ return state[k]; }).length + ($('q').value.trim() ? 1 : 0);
+  $('fCount').textContent = n ? '（' + n + '）' : '';
+}
+$('filterFields').addEventListener('change', function(e){
+  var k = e.target.getAttribute('data-key'); if (!k) return;
+  if (e.target.value) state[k] = e.target.value; else delete state[k];
+  (function clearDeps(key){ FILTERS.forEach(function(f){ if (f.dep === key) { delete state[f.key]; clearDeps(f.key); } }); })(k);
+  onFilterChange();
+});
+var qTimer;
+$('q').addEventListener('input', function(){ clearTimeout(qTimer); qTimer = setTimeout(onFilterChange, 200); });
+$('btnReset').addEventListener('click', function(e){ e.preventDefault(); state = {}; $('q').value = ''; onFilterChange(); });
+$('sortSel').addEventListener('change', function(){ page = 0; applyFilters(); renderTable(); });
+
+function onFilterChange(){
+  page = 0;
+  if (selected.size) { selected.clear(); toast('篩選條件改了，已清除先前的勾選'); }
+  buildFilters(); applyFilters(); renderAll();
+}
+
+function applyFilters(){
+  var base = baseRows();
+  var active = FILTERS.filter(function(f){ return state[f.key] && !(f.sup && view !== 'sup'); });
+  var q = $('q').value.trim().toLowerCase();
+  filtered = base.filter(function(r){
+    for (var i = 0; i < active.length; i++) if (!active[i].test(r, state[active[i].key])) return false;
+    if (q && (r.n || '').toLowerCase().indexOf(q) < 0 && (r.ph || '').indexOf(q) < 0 && r.id.toLowerCase().indexOf(q) < 0) return false;
+    return true;
+  });
+  // 勾選只保留仍在名單裡的客人
+  if (selected.size) selected.forEach(function(id){ if (!byId[id]) selected.delete(id); });
+  var s = $('sortSel').value;
+  var cmp = {
+    tot:function(a, b){ return (b.tot || 0) - (a.tot || 0); },
+    lc:function(a, b){ return (b.lc || '').localeCompare(a.lc || ''); },
+    lcOld:function(a, b){ return (a.lc || '9999').localeCompare(b.lc || '9999'); },
+    lv:function(a, b){ return (b.lv || '').localeCompare(a.lv || ''); },
+    age:function(a, b){ return (a.age == null ? 999 : a.age) - (b.age == null ? 999 : b.age); },
+    id:function(a, b){ return a.id.localeCompare(b.id); }
+  }[s];
+  filtered.sort(cmp);
+}
+
+/* ---------- 畫面 ---------- */
+function renderAll(){ renderLanes(); renderMe(); renderTable(); renderToolbar(); renderInfo(); }
+
+function renderInfo(){
+  var el = $('dataInfo');
+  if (!loadedOnce) { el.textContent = '正在讀取名單…'; return; }
+  if (isSup) {
+    if (!rows.length) { el.textContent = '還沒有客戶資料'; return; }
+    var at = meta.custAt ? new Date(meta.custAt) : null;
+    el.textContent = '共 ' + rows.length.toLocaleString('zh-TW') + ' 位客人' + (at && !isNaN(at) ? '，報表更新於 ' + at.toLocaleDateString('zh-TW') + ' ' + at.toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'}) : '');
+  } else {
+    el.textContent = '你的名單有 ' + rows.length.toLocaleString('zh-TW') + ' 位客人';
+  }
+}
+
+function renderLanes(){
+  if (!summary) { $('bar').innerHTML = ''; $('legend').innerHTML = ''; return; }
+  var total = summary.total || 1, bar = '', leg = '';
+  summary.staff.forEach(function(s, i){
+    var col = COLORS[i % COLORS.length];
+    if (s.n) bar += '<i style="flex-basis:' + (s.n / total * 100) + '%;background:' + col + '" title="' + esc(s.name) + '：' + s.n + ' 位"></i>';
+    leg += '<div><span class="dot" style="background:' + col + '"></span><b>' + esc(s.name) + (s.name === session.name ? '（我）' : '') + '</b><small>' + s.n + ' 位，已撥 ' + s.called + '，約診 ' + s.booked + '</small></div>';
+  });
+  leg = '<div><span class="dot" style="background:var(--pool)"></span><b>未分配</b><small>' + summary.unassigned + ' 位</small></div>' + leg;
+  $('bar').innerHTML = bar;
+  $('legend').innerHTML = summary.staff.length ? leg : leg + '<div><small>' + (isSup ? '還沒有業務帳號，按「業務帳號」看怎麼新增' : '主管還沒建立業務帳號') + '</small></div>';
+}
+
+function renderMe(){
+  var bar = $('meBar');
+  if (view !== 'staff') { bar.classList.add('hidden'); return; }
+  bar.classList.remove('hidden');
+  var n = rows.length, called = 0, booked = 0;
+  rows.forEach(function(r){ var e = myRes[r.id]; if (e && e.r) { called++; if (e.r === '已約診') booked++; } });
+  $('meStats').innerHTML = '<span><strong>' + n + '</strong>位在我的名單</span><span><strong>' + called + '</strong>位已撥打</span><span><strong>' + (n - called) + '</strong>位待撥</span><span><strong>' + booked + '</strong>位已約診</span>';
+}
+
+function renderToolbar(){
+  var c = $('countLine');
+  var sup = view === 'sup';
+  var sel = selected.size;
+  c.innerHTML = (sup ? '符合篩選' : '我的名單中符合') + ' <strong>' + filtered.length.toLocaleString('zh-TW') + '</strong> 位' + (sup && sel ? '，<span class="sel">已勾選 ' + sel + ' 位</span>' : '');
+  $('btnSelAll').classList.toggle('hidden', !sup);
+  $('btnSelClear').classList.toggle('hidden', !sup || !sel);
+  $('selRow').querySelector('.sep').classList.toggle('hidden', !sup);
+  $('btnSelAll').disabled = !filtered.length || sel === filtered.length;
+  $('btnSelAll').textContent = '全選篩選結果（' + filtered.length + '）';
+  $('btnExport').textContent = sup ? (sel ? '下載勾選的 ' + sel + ' 位' : '下載篩選結果') : '下載我的名單';
+  $('btnExport').disabled = !(sel || filtered.length) || typeof XLSX === 'undefined';
+  $('supActions').classList.toggle('hidden', !sup);
+  var a = $('assignTo'); var prev = a.value;
+  a.innerHTML = '<option value="">分配給…</option>' + staff.map(function(s){ return '<option value="' + esc(s) + '">' + esc(s) + '</option>'; }).join('');
+  a.value = staff.indexOf(prev) >= 0 ? prev : '';
+  ['btnAssign','btnSpread','btnByCons','btnUnassign'].forEach(function(id){ $(id).disabled = !sel; });
+  $('btnAssign').disabled = !sel || !a.value;
+  $('btnSpread').disabled = !sel || staff.length < 1;
+}
+$('assignTo').addEventListener('change', renderToolbar);
+
+function resultChip(e){
+  if (!e || !e.r) return '<span class="chip none">還沒撥打</span>';
+  return '<span class="chip tone-' + (TONE[e.r] || 'muted') + '">' + esc(e.r) + '</span>';
+}
+function renderTable(){
+  var t = $('tbl'), emptyBox = $('emptyBox');
+  var sup = view === 'sup';
+  if (!loadedOnce) { t.innerHTML = ''; emptyBox.innerHTML = '<div class="empty">正在讀取名單…</div>'; $('pager').innerHTML = ''; return; }
+  if (!rows.length) {
+    t.innerHTML = '';
+    emptyBox.innerHTML = sup ? '<div class="empty"><strong>還沒有客戶資料</strong>按右上角「匯入客戶報表」，選擇系統匯出的客戶列表 Excel，可以一次選多個檔案。</div>' : '<div class="empty"><strong>你的名單還是空的</strong>主管還沒有分配客人給你。</div>';
+    $('pager').innerHTML = ''; return;
+  }
+  if (!filtered.length) {
+    t.innerHTML = '';
+    emptyBox.innerHTML = '<div class="empty"><strong>沒有符合的客人</strong>放寬篩選條件，或按「全部清除」重新開始。</div>';
+    $('pager').innerHTML = ''; return;
+  }
+  emptyBox.innerHTML = '';
+  var pages = Math.ceil(filtered.length / PAGE); if (page >= pages) page = pages - 1;
+  var list = filtered.slice(page * PAGE, page * PAGE + PAGE);
+  var h = '<thead><tr>';
+  if (sup) {
+    var allOn = list.every(function(r){ return selected.has(r.id); });
+    h += '<th><input type="checkbox" class="cb" id="cbPage" aria-label="勾選本頁"' + (allOn ? ' checked' : '') + '></th>';
+  }
+  h += '<th>姓名</th><th>電話</th>' + (sup ? '<th>所屬諮詢師</th>' : '') + '<th>渠道</th><th>成交</th><th>最近到訪</th><th>最近消費</th><th class="num">消費總額</th>';
+  h += sup ? '<th>分配給</th><th>撥打結果</th>' : '<th>撥打結果</th><th>備註</th>';
+  h += '</tr></thead><tbody>';
+  list.forEach(function(r){
+    var on = selected.has(r.id);
+    h += '<tr' + (on ? ' class="picked"' : '') + ' data-id="' + esc(r.id) + '">';
+    if (sup) h += '<td><input type="checkbox" class="cb rowcb" aria-label="勾選 ' + esc(r.n) + '"' + (on ? ' checked' : '') + '></td>';
+    var who = [r.g || '', r.age != null ? r.age + ' 歲' : '', (r.c || '') + (r.d || '')].filter(Boolean).join('，');
+    h += '<td><span class="nm">' + esc(r.n) + '</span><span class="sub">' + esc(r.id) + (who ? '，' + esc(who) : '') + '</span></td>';
+    h += '<td>' + (r.ph ? '<a class="tel" href="tel:' + esc(r.ph) + '">' + esc(r.ph) + '</a>' : '<span class="sub">沒有電話</span>') + '</td>';
+    if (sup) h += '<td>' + esc(r.s || '') + '</td>';
+    var chs = [r.ch1, r.ch2].filter(function(x, i, a){ return x && a.indexOf(x) === i; }).join('／');
+    h += '<td>' + esc(r.ch0 || '') + (chs ? '<span class="sub">' + esc(chs) + '</span>' : '') + '</td>';
+    h += '<td>' + (r.deal ? '<span class="chip' + (r.deal === '未成交' ? ' tone-muted' : ' tone-ok') + '">' + esc(r.deal) + '</span>' : '') + (r.owe ? ' <span class="chip tone-bad">欠費</span>' : '') + '</td>';
+    h += '<td>' + esc(r.lv || '') + '<span class="sub">' + esc(r.vt || '') + '</span></td>';
+    h += '<td>' + esc(r.lc || '') + (r.la ? '<span class="sub">' + money(r.la) + ' 元</span>' : '') + '</td>';
+    h += '<td class="num">' + money(r.tot) + '</td>';
+    if (sup) {
+      var o = owner[r.id];
+      h += '<td>' + (o ? '<span class="chip"><span class="dot" style="background:' + staffColor(o) + '"></span>' + esc(o) + '</span><span class="sub">' + esc(ownerAt[r.id] || '') + '</span>' : '<span class="chip none">未分配</span>') + '</td>';
+      var e = lastRes[r.id];
+      h += '<td>' + resultChip(e) + (e && e.n ? '<span class="sub" title="' + esc(e.n) + '">' + esc(e.n.length > 16 ? e.n.slice(0, 16) + '…' : e.n) + '</span>' : '') + '</td>';
+    } else {
+      var mine = myRes[r.id] || {};
+      var cur = mine.r || '';
+      var other = lastRes[r.id] && lastRes[r.id].by !== session.name ? lastRes[r.id] : null;
+      h += '<td><select class="rsel" aria-label="' + esc(r.n) + ' 的撥打結果"><option value="">還沒撥打</option>' + RESULTS.map(function(x){ return '<option' + (x.v === cur ? ' selected' : '') + '>' + esc(x.v) + '</option>'; }).join('') + '</select>' +
+        (mine.c ? '<span class="sub">撥過 ' + mine.c + ' 次，最近 ' + esc(String(mine.at || '').slice(5, 16)) + '</span>' : '') +
+        (other && other.r ? '<span class="sub">前一位業務：' + esc(other.r) + '</span>' : '') + '</td>';
+      h += '<td><input class="note" type="text" maxlength="200" placeholder="例如：下週三再打" value="' + esc(mine.n || '') + '" aria-label="' + esc(r.n) + ' 的備註"></td>';
+    }
+    h += '</tr>';
+  });
+  t.innerHTML = h + '</tbody>';
+  var p = $('pager');
+  p.innerHTML = '<span>第 ' + (page * PAGE + 1) + '–' + Math.min(filtered.length, page * PAGE + PAGE) + ' 位，共 ' + filtered.length + ' 位</span>' +
+    '<span><button class="btn" type="button" id="pgPrev"' + (page ? '' : ' disabled') + '>上一頁</button> <button class="btn" type="button" id="pgNext"' + (page < pages - 1 ? '' : ' disabled') + '>下一頁</button></span>';
+  $('pgPrev').onclick = function(){ page--; renderTable(); $('tbl').scrollIntoView({block:'nearest'}); };
+  $('pgNext').onclick = function(){ page++; renderTable(); $('tbl').scrollIntoView({block:'nearest'}); };
+}
+
+$('tbl').addEventListener('change', function(e){
+  var tr = e.target.closest('tr[data-id]');
+  if (e.target.id === 'cbPage') {
+    var list = filtered.slice(page * PAGE, page * PAGE + PAGE);
+    list.forEach(function(r){ if (e.target.checked) selected.add(r.id); else selected.delete(r.id); });
+    renderTable(); renderToolbar(); return;
+  }
+  if (!tr) return;
+  var id = tr.getAttribute('data-id');
+  if (e.target.classList.contains('rowcb')) {
+    if (e.target.checked) selected.add(id); else selected.delete(id);
+    tr.classList.toggle('picked', e.target.checked);
+    var cbp = $('cbPage'); if (cbp) cbp.checked = filtered.slice(page * PAGE, page * PAGE + PAGE).every(function(r){ return selected.has(r.id); });
+    renderToolbar();
+  } else if (e.target.classList.contains('rsel')) {
+    saveResult(id, {r:e.target.value, call:true});
+  } else if (e.target.classList.contains('note')) {
+    saveResult(id, {n:e.target.value.trim()});
+  }
+});
+$('btnSelAll').addEventListener('click', function(){ filtered.forEach(function(r){ selected.add(r.id); }); renderTable(); renderToolbar(); });
+$('btnSelClear').addEventListener('click', function(){ selected.clear(); renderTable(); renderToolbar(); });
+
+/* ---------- 業務：記錄撥打結果 ---------- */
+var queues = {};
+function enqueue(key, fn){ queues[key] = (queues[key] || Promise.resolve()).then(fn, fn); return queues[key]; }
+var pollSoon;
+function saveResult(id, patch){
+  var prev = myRes[id] ? Object.assign({}, myRes[id]) : null;
+  var e = Object.assign({by:session.name, r:'', n:'', c:0, at:''}, myRes[id] || {});
+  if ('r' in patch) { e.r = patch.r; if (patch.call && patch.r) e.c = (e.c || 0) + 1; }
+  if ('n' in patch) e.n = patch.n;
+  myRes[id] = e;
+  renderMe();
+  enqueue(id, function(){
+    return api('saveResult', Object.assign({id:id}, patch)).then(function(res){
+      var x = res.entry;
+      myRes[id] = {by:x[1], r:x[2], n:x[3], c:+x[4] || 0, at:x[5]};
+      if (myRes[id].r) lastRes[id] = myRes[id];
+      rev = '';  // 讓下一次同步一定重新讀取
+      toast('已儲存');
+      clearTimeout(pollSoon); pollSoon = setTimeout(function(){ reload({quiet:true}); }, 4000);
+      var tr = document.querySelector('tr[data-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+      if (tr && 'r' in patch) { var sub = tr.querySelector('.rsel'); if (sub && sub.nextElementSibling && sub.nextElementSibling.classList.contains('sub')) sub.nextElementSibling.textContent = '撥過 ' + myRes[id].c + ' 次，最近 ' + String(myRes[id].at).slice(5, 16); else if (sub && myRes[id].c) sub.insertAdjacentHTML('afterend', '<span class="sub">撥過 ' + myRes[id].c + ' 次，最近 ' + esc(String(myRes[id].at).slice(5, 16)) + '</span>'); }
+    }, function(err){
+      if (prev) myRes[id] = prev; else delete myRes[id];
+      toast(err.msg, 5000);
+      if (err.code === 'gone') reload(); else renderTable();
+      renderMe();
+    });
+  });
+}
+
+/* ---------- 主管：分配 ---------- */
+function seenFor(ids){ var m = {}; ids.forEach(function(id){ m[id] = owner[id] || ''; }); return m; }
+function doAssign(ids, mode, target, verb){
+  document.body.classList.add('busy');
+  toast('處理中…', 20000);
+  return api('assign', {mode:mode, target:target || '', ids:ids, seen:seenFor(ids), custAt:rowsAt}).then(function(res){
+    applyLoad(res);
+    var r = res.result || {}, parts = [];
+    if (r.added) parts.push('新分配 ' + r.added + ' 位');
+    if (r.moved) parts.push('改派 ' + r.moved + ' 位');
+    if (r.removed) parts.push('收回 ' + r.removed + ' 位');
+    if (r.skipped) parts.push('沒動到 ' + r.skipped + ' 位');
+    if (r.conflict) parts.push(r.conflict + ' 位剛被其他主管調整過，已保留對方的設定');
+    toast(parts.length ? verb + '完成：' + parts.join('，') : '沒有需要變動的客人', 6000);
+    selected.clear(); buildFilters(); applyFilters(); renderAll();
+  }, function(err){ toast(err.msg, 5000); })
+  .then(function(){ document.body.classList.remove('busy'); });
+}
+function askConflict(ids, targetLabel){
+  var taken = ids.filter(function(id){ return owner[id]; });
+  if (!taken.length) return Promise.resolve('all');
+  var names = {}; taken.forEach(function(id){ var n = owner[id]; names[n] = (names[n] || 0) + 1; });
+  var detail = Object.keys(names).map(function(n){ return esc(n) + ' ' + names[n] + ' 位'; }).join('、');
+  var free = ids.length - taken.length;
+  var btns = [{label:'取消', value:null}, {label:'全部改派給' + targetLabel, value:'all', danger:!!free, primary:!free}];
+  if (free) btns.push({label:'只分配未分配的 ' + free + ' 位', value:'skip', primary:true});
+  return modal('<h3>' + (free ? '有 ' + taken.length + ' 位已經在別人的名單裡' : '勾選的 ' + taken.length + ' 位都已經在別人的名單裡') + '</h3><p>目前在：' + detail + '。</p><p>' + (free ? '為了不搶客人，建議只分配還沒分配的 ' + free + ' 位。' : '') + '改派的話，這些客人會從原本業務的名單移走，對方就看不到了。</p>', btns);
+}
+function pick(ids, mode){ return mode === 'skip' ? ids.filter(function(id){ return !owner[id]; }) : ids; }
+$('btnAssign').addEventListener('click', function(){
+  var k = $('assignTo').value; if (!k) return;
+  var ids = Array.from(selected).filter(function(id){ return owner[id] !== k; });
+  if (!ids.length) { toast('勾選的客人已經都在 ' + k + ' 的名單裡'); return; }
+  askConflict(ids, k).then(function(mode){ if (mode) return doAssign(pick(ids, mode), 'to', k, '分配'); });
+});
+$('btnSpread').addEventListener('click', function(){
+  var ids = Array.from(selected);
+  askConflict(ids, '其他人').then(function(mode){ if (mode) return doAssign(pick(ids, mode), 'spread', '', '平均分配'); });
+});
+$('btnByCons').addEventListener('click', function(){
+  var ids = Array.from(selected).filter(function(id){ var s = (byId[id] || {}).s; return s && staff.indexOf(s) >= 0 && owner[id] !== s; });
+  if (!ids.length) { toast('勾選的客人，所屬諮詢師都沒有業務帳號（或已經在他們名單裡）。名字要和試算表帳號分頁完全相同。', 6000); return; }
+  askConflict(ids, '所屬諮詢師').then(function(mode){ if (mode) return doAssign(pick(ids, mode), 'byCons', '', '依所屬諮詢師分配'); });
+});
+$('btnUnassign').addEventListener('click', function(){
+  var ids = Array.from(selected).filter(function(id){ return owner[id]; });
+  if (!ids.length) { toast('勾選的客人都還沒分配'); return; }
+  modal('<h3>收回 ' + ids.length + ' 位客人？</h3><p>他們會從業務的名單移走，回到未分配。已經記錄的撥打結果會保留。</p>',
+    [{label:'取消', value:null}, {label:'收回分配', value:1, primary:true}]).then(function(ok){ if (ok) return doAssign(ids, 'unassign', '', '收回'); });
+});
+
+/* ---------- 業務帳號說明 ---------- */
+$('btnStaff').addEventListener('click', function(){
+  var html = '<h3>業務帳號</h3><p>帳號在你的 Google 試算表「帳號」分頁設定，這裡只能查看。</p><ul class="staffList">';
+  if (!staff.length) html += '<li><span class="sub">還沒有業務帳號</span></li>';
+  (summary ? summary.staff : []).forEach(function(s, i){
+    html += '<li><span class="dot" style="background:' + COLORS[i % COLORS.length] + '"></span>' + esc(s.name) + '<span class="c">' + s.n + ' 位</span></li>';
+  });
+  html += '</ul><ol class="rules"><li>新增：在帳號分頁加一列，填名字、密碼，角色選「業務」，勾選啟用。</li><li>停用：取消勾選「啟用」，他名單上的客人會回到未分配，撥打紀錄會保留。</li><li>想用「分給各自的所屬諮詢師」，業務的名字要和報表裡的所屬諮詢師完全相同。</li><li>改完試算表後，按這裡的「重新整理」就會更新。</li></ol>';
+  modal(html, [{label:'完成', value:1, primary:true}]);
+});
+
+/* ---------- 匯入客戶報表 ---------- */
+$('btnImport').addEventListener('click', function(){
+  if (typeof XLSX === 'undefined') { toast('讀取 Excel 的元件沒有載入，請重新整理頁面'); return; }
+  $('fileInput').value = ''; $('fileInput').click();
+});
+$('fileInput').addEventListener('change', function(){
+  var files = Array.from(this.files || []); if (!files.length) return;
+  toast('正在讀取 ' + files.length + ' 個檔案…', 8000);
+  Promise.all(files.map(function(f){
+    return f.arrayBuffer().then(function(buf){
+      var wb = XLSX.read(buf, {type:'array'});
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      return XLSX.utils.sheet_to_json(ws, {defval:null, raw:true});
+    });
+  })).then(function(lists){
+    var bad = lists.filter(function(l){ return !l.length || !('會員號' in l[0]) || !('姓名' in l[0]); }).length;
+    if (bad) { toast('有 ' + bad + ' 個檔案沒有「會員號」和「姓名」欄位，請選系統匯出的客戶列表', 5000); return; }
+    var raw = [].concat.apply([], lists);
+    var slim = slimRows(raw);
+    var ids = {}; slim.forEach(function(r){ ids[r.id] = 1; });
+    var lost = Object.keys(owner).filter(function(id){ return !ids[id]; }).length;
+    return modal('<h3>用 ' + slim.length.toLocaleString('zh-TW') + ' 位客人取代目前名單？</h3><p>檔案：' + files.map(function(f){ return esc(f.name); }).join('、') + '</p><p>目前名單有 ' + rows.length.toLocaleString('zh-TW') + ' 位。分配和撥打紀錄會依會員號保留' + (lost ? '，但有 ' + lost + ' 位已分配的客人不在新報表裡，會從名單上消失' : '') + '。</p><p>不會存入證件號碼和完整地址，只保留縣市和行政區。</p>',
+      [{label:'取消', value:null}, {label:'匯入', value:1, primary:true}]).then(function(ok){
+      if (!ok) return;
+      return importRows(slim, files.map(function(f){ return f.name; }));
+    });
+  }).catch(function(){ toast('讀不到這個檔案，請確認是 Excel 格式', 5000); });
+});
+function importRows(slim, names){
+  var SIZE = 2000, n = Math.ceil(slim.length / SIZE), importId;
+  document.body.classList.add('busy');
+  toast('匯入中 0%', 60000);
+  var chain = api('importStart').then(function(r){ importId = r.importId; });
+  for (var i = 0; i < n; i++) (function(i){
+    chain = chain.then(function(){
+      return api('importChunk', {importId:importId, rows:slim.slice(i * SIZE, (i + 1) * SIZE)}).then(function(){ toast('匯入中 ' + Math.round((i + 1) / n * 100) + '%', 60000); });
+    });
+  })(i);
+  return chain.then(function(){ return api('importCommit', {importId:importId, files:names}); })
+    .then(function(res){ applyLoad(res); selected.clear(); buildFilters(); applyFilters(); renderAll(); toast('匯入完成，共 ' + res.imported + ' 位客人', 5000); },
+      function(err){ toast('匯入中斷：' + err.msg, 6000); })
+    .then(function(){ document.body.classList.remove('busy'); });
+}
+
+/* ---------- 下載 Excel ---------- */
+$('btnExport').addEventListener('click', function(){
+  if (typeof XLSX === 'undefined') { toast('讀取 Excel 的元件沒有載入，請重新整理頁面'); return; }
+  var sup = view === 'sup';
+  var list = sup && selected.size ? Array.from(selected).map(function(id){ return byId[id]; }).filter(Boolean) : filtered;
+  var data = list.map(function(r){
+    var e = (sup ? lastRes[r.id] : myRes[r.id]) || {};
+    return {
+      '會員號':r.id, '姓名':r.n || '', '手機':r.ph || '', '性別':r.g || '', '年齡':r.age == null ? '' : r.age, '生日月份':r.bm || '',
+      '縣市':r.c || '', '行政區':r.d || '', '所屬諮詢師':r.s || '', '成交狀態':r.deal || '', '會員狀態':r.st || '',
+      '最近到訪類型':r.vt || '', '最近到訪':r.lv || '', '最近消費日':r.lc || '', '最近消費金額':r.la || 0, '消費總額':r.tot || 0,
+      '欠費':r.owe ? '有' : '', '儲值金餘額':r.sv || 0, '渠道分類':r.ch0 || '', '一級渠道':r.ch1 || '', '二級渠道':r.ch2 || '',
+      '分配給':owner[r.id] || '', '分配日':ownerAt[r.id] || '',
+      '撥打結果':e.r || '', '撥打次數':e.c || '', '最近撥打':e.at ? String(e.at).slice(0, 16) : '', '撥打人':e.by || '', '備註':e.n || ''
+    };
+  });
+  var wb = XLSX.utils.book_new();
+  var ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = [12,10,12,5,5,7,7,8,14,9,10,10,11,11,11,10,5,10,8,10,10,10,11,13,8,16,8,24].map(function(w){ return {wch:w}; });
+  ws['!autofilter'] = {ref:'A1:AB' + (data.length + 1)};
+  XLSX.utils.book_append_sheet(wb, ws, '名單');
+  var stat = (summary ? summary.staff : []).filter(function(s){ return sup || s.name === session.name; }).map(function(s){ return {'業務':s.name, '名單人數':s.n, '已撥打':s.called, '待撥':s.n - s.called, '已約診':s.booked}; });
+  if (sup && summary) stat.unshift({'業務':'未分配', '名單人數':summary.unassigned, '已撥打':'', '待撥':'', '已約診':''});
+  var ws2 = XLSX.utils.json_to_sheet(stat.length ? stat : [{'業務':'', '名單人數':'', '已撥打':'', '待撥':'', '已約診':''}]); ws2['!cols'] = [{wch:16},{wch:10},{wch:8},{wch:8},{wch:8}];
+  XLSX.utils.book_append_sheet(wb, ws2, '分配統計');
+  var cond = FILTERS.filter(function(f){ return state[f.key] && !(f.sup && !sup); }).map(function(f){
+    var o = f.opts().filter(function(x){ return x[0] === state[f.key]; })[0];
+    return {'條件':f.label, '設定':o ? o[1].replace(/（\d+）$/, '') : state[f.key]};
+  });
+  if ($('q').value.trim()) cond.push({'條件':'搜尋', '設定':$('q').value.trim()});
+  if (sup && selected.size) cond.push({'條件':'範圍', '設定':'只含勾選的客人'});
+  cond.unshift({'條件':'下載日期', '設定':TODAY_STR}, {'條件':'下載人', '設定':session.name}, {'條件':'人數', '設定':list.length});
+  var ws3 = XLSX.utils.json_to_sheet(cond); ws3['!cols'] = [{wch:12},{wch:30}];
+  XLSX.utils.book_append_sheet(wb, ws3, '篩選條件');
+  var who = sup ? (state.asg && staff.indexOf(state.asg) >= 0 ? state.asg : selected.size ? '勾選' : '篩選') : session.name;
+  var fname = 'Call客名單_' + who.replace(/[\\\/:*?"<>|]/g, '') + '_' + TODAY_STR + '.xlsx';
+  XLSX.writeFile(wb, fname, {compression:true});
+  toast('已下載 ' + list.length + ' 位');
+});
+
+/* ---------- 啟動 ---------- */
+function startApp(){
+  isSup = session.role === '主管';
+  view = isSup ? 'sup' : 'staff';
+  $('loginView').classList.add('hidden'); $('appView').classList.remove('hidden');
+  $('whoAmI').innerHTML = '<b>' + esc(session.name) + '</b>（' + esc(session.role) + '）';
+  $('btnStaff').classList.toggle('hidden', !isSup);
+  $('btnImport').classList.toggle('hidden', !isSup);
+  $('lanesNote').textContent = isSup ? '每位客人只會出現在一位業務的名單裡' : '你只會看到分配給你的客人';
+  state = {}; $('q').value = ''; selected.clear(); page = 0;
+  buildFilters(); applyFilters(); renderAll();
+  reload().then(startPolling);
+}
+function fitFilters(){ var box = $('filterBox'); if (window.innerWidth > 900) box.open = true; }
+window.addEventListener('resize', fitFilters);
+if (window.innerWidth <= 900) $('filterBox').open = false;
+
+if (session && session.token) startApp(); else showLogin();
+})();
+</script>
+</body>
+</html>
