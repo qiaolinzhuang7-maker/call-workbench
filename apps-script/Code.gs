@@ -104,6 +104,8 @@ function route(req) {
   if (a === 'load') return load(me, req);
   if (a === 'saveResult') { needRole(me, '業務'); return withLock(function () { return saveResult(me, req); }); }
   if (a === 'assign') { needRole(me, '主管'); return withLock(function () { return assign(me, req); }); }
+  if (a === 'staffAdd') { needRole(me, '主管'); return withLock(function () { return staffAdd(me, req); }); }
+  if (a === 'staffRemove') { needRole(me, '主管'); return withLock(function () { return staffRemove(me, req); }); }
   if (a === 'importStart') { needRole(me, '主管'); return importStart(me); }
   if (a === 'importChunk') { needRole(me, '主管'); return importChunk(me, req); }
   if (a === 'importCommit') { needRole(me, '主管'); return withLock(function () { return importCommit(me, req); }); }
@@ -182,6 +184,52 @@ function auth(token) {
   if (!acc) { cache.remove('s_' + token); fail('這個帳號已停用或權限已變更，請重新登入', 'auth'); }
   cache.put('s_' + token, raw, SESSION_SEC);
   return s;
+}
+
+/* ================= 主管：在網頁上新增／移除業務 ================= */
+function accRows() {
+  var sh = SpreadsheetApp.getActive().getSheetByName(SHEET.ACC);
+  var n = Math.max(sh.getLastRow() - 1, 0);
+  return { sh: sh, v: n ? sh.getRange(2, 1, n, 4).getValues() : [] };
+}
+
+function staffAdd(me, req) {
+  var name = cleanCell(req.name).slice(0, 30);
+  var pw = String(req.password || '').slice(0, 50);
+  if (!name) fail('請輸入名字');
+  var a = accRows(), row = -1;
+  for (var i = 0; i < a.v.length; i++) if (String(a.v[i][0]).trim() === name) { row = i; break; }
+  if (row >= 0) {
+    if (String(a.v[row][2]).trim() === '主管') fail('「' + name + '」已經是主管帳號');
+    var on = a.v[row][3];
+    if (on !== false && !/^(false|否|停用|n|no|0)$/i.test(String(on).trim()) && String(a.v[row][2]).trim() === '業務') fail('名單裡已經有「' + name + '」');
+    a.sh.getRange(row + 2, 3).setValue('業務');
+    a.sh.getRange(row + 2, 4).insertCheckboxes().setValue(true);
+    if (pw) a.sh.getRange(row + 2, 2).setNumberFormat('@').setValue(pw);
+  } else {
+    var r = a.v.length + 2;
+    ensureRows(a.sh, r);
+    a.sh.getRange(r, 2).setNumberFormat('@');
+    a.sh.getRange(r, 1, 1, 3).setValues([[name, pw, '業務']]);
+    a.sh.getRange(r, 4).insertCheckboxes().setValue(true);
+  }
+  bumpRev();
+  logOp(me.name, '新增業務', name + (pw ? '（有密碼）' : ''));
+  return load(me, { custAt: req.custAt });
+}
+
+function staffRemove(me, req) {
+  var name = String(req.name || '').trim();
+  var a = accRows(), found = false;
+  for (var i = 0; i < a.v.length; i++) {
+    if (String(a.v[i][0]).trim() === name && String(a.v[i][2]).trim() === '業務') {
+      a.sh.getRange(i + 2, 4).insertCheckboxes().setValue(false); found = true;
+    }
+  }
+  if (!found) fail('找不到這位業務');
+  bumpRev();
+  logOp(me.name, '移除業務', name);
+  return load(me, { custAt: req.custAt });
 }
 
 /* ================= 不用登入的首頁資訊：只有人數，沒有客戶資料 ================= */
