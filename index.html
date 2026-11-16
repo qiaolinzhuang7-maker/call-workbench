@@ -973,11 +973,21 @@ $('fileInput').addEventListener('change', function(){
     var raw = [].concat.apply([], lists);
     var slim = slimRows(raw);
     var ids = {}; slim.forEach(function(r){ ids[r.id] = 1; });
+    var cur = {}; rows.forEach(function(r){ cur[r.id] = 1; });
+    var upd = slim.filter(function(r){ return cur[r.id]; }).length, add = slim.length - upd, keep = rows.length - upd;
     var lost = Object.keys(owner).filter(function(id){ return !ids[id]; }).length;
-    return modal('<h3>用 ' + slim.length.toLocaleString('zh-TW') + ' 位客人取代目前名單？</h3><p>檔案：' + files.map(function(f){ return esc(f.name); }).join('、') + '</p><p>目前名單有 ' + rows.length.toLocaleString('zh-TW') + ' 位。分配和撥打紀錄會依會員號保留' + (lost ? '，但有 ' + lost + ' 位已分配的客人不在新報表裡，會從名單上消失' : '') + '。</p><p>不會存入證件號碼和完整地址，只保留縣市和行政區。</p>',
-      [{label:'取消', value:null}, {label:'匯入', value:1, primary:true}]).then(function(ok){
-      if (!ok) return;
-      return importRows(slim, files.map(function(f){ return f.name; }));
+    var fl = '<p>檔案：' + files.map(function(f){ return esc(f.name); }).join('、') + '（' + slim.length.toLocaleString('zh-TW') + ' 位）</p>';
+    return modal('<h3>匯入 ' + slim.length.toLocaleString('zh-TW') + ' 位客人</h3>' + fl +
+      '<p><b>合併（建議）</b>：新增 ' + add + ' 位、更新 ' + upd + ' 位資料，目前名單其他 ' + keep.toLocaleString('zh-TW') + ' 位保留不動。匯入後共 ' + (rows.length + add).toLocaleString('zh-TW') + ' 位。</p>' +
+      (rows.length ? '<p><b>整份取代</b>：名單只剩這 ' + slim.length.toLocaleString('zh-TW') + ' 位，目前名單其他 ' + keep.toLocaleString('zh-TW') + ' 位會被移除' + (lost ? '（其中 ' + lost + ' 位已分配）' : '') + '。只有匯入完整的客戶總表時才用。</p>' : '') +
+      '<p>不會存入證件號碼和完整地址，只保留縣市和行政區。</p>',
+      [{label:'取消', value:null}].concat(rows.length ? [{label:'整份取代', value:'replace', danger:true}] : []).concat([{label:'合併匯入', value:'merge', primary:true}])).then(function(mode){
+      if (!mode) return;
+      if (mode === 'replace') {
+        return modal('<h3>確定要整份取代？</h3><p>目前名單有 ' + rows.length.toLocaleString('zh-TW') + ' 位，取代後只剩 ' + slim.length.toLocaleString('zh-TW') + ' 位。</p>',
+          [{label:'取消', value:null}, {label:'確定取代', value:1, danger:true}]).then(function(ok){ if (ok) return importRows(slim, files.map(function(f){ return f.name; }), 'replace'); });
+      }
+      return importRows(slim, files.map(function(f){ return f.name; }), 'merge');
     });
   }).catch(function(){ toast('讀不到這個檔案，請確認是 Excel 格式', 5000); });
 });
@@ -989,7 +999,7 @@ function apiRetry(action, data, tries){
     return new Promise(function(r){ setTimeout(r, 2500); }).then(function(){ return apiRetry(action, data, tries - 1); });
   });
 }
-function importRows(slim, names){
+function importRows(slim, names, mode){
   var SIZE = 1000, n = Math.ceil(slim.length / SIZE), importId;
   document.body.classList.add('busy');
   toast('匯入中 0%', 60000);
@@ -999,8 +1009,8 @@ function importRows(slim, names){
       return apiRetry('importChunk', {importId:importId, rows:slim.slice(i * SIZE, (i + 1) * SIZE)}).then(function(){ toast('匯入中 ' + Math.round((i + 1) / n * 100) + '%', 60000); });
     });
   })(i);
-  return chain.then(function(){ return apiRetry('importCommit', {importId:importId, files:names}, 1); })
-    .then(function(res){ applyLoad(res); selected.clear(); buildFilters(); applyFilters(); renderAll(); toast('匯入完成，共 ' + res.imported + ' 位客人', 5000); },
+  return chain.then(function(){ return apiRetry('importCommit', {importId:importId, files:names, mode:mode}, 1); })
+    .then(function(res){ applyLoad(res); selected.clear(); buildFilters(); applyFilters(); renderAll(); toast('匯入完成，名單共 ' + res.imported + ' 位客人', 5000); },
       function(err){ toast('匯入中斷：' + err.msg, 6000); })
     .then(function(){ document.body.classList.remove('busy'); });
 }

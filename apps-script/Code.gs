@@ -444,11 +444,19 @@ function importCommit(me, req) {
   if (!n) fail('沒有收到客戶資料');
   // 同一會員號只留一筆（以最後出現的為準）
   var v = sh.getRange(2, 1, n, CUST_KEYS.length).getDisplayValues();
-  var map = {}; v.forEach(function (r) { if (r[0]) map[r[0]] = r; });
+  var map = {};
+  // 合併模式（預設）：先放入目前的名單，新報表有的會員號再覆蓋，沒出現的保留
+  var merged = 0, kept = 0;
+  if (req.mode !== 'replace') {
+    sheetRows(SHEET.CUST, CUST_KEYS.length).forEach(function (r) { if (r[0]) map[r[0]] = r; });
+    kept = Object.keys(map).length;
+  }
+  v.forEach(function (r) { if (r[0]) { if (map[r[0]] && req.mode !== 'replace') merged++; map[r[0]] = r; } });
   var ids = Object.keys(map).sort();
   var uniq = ids.map(function (k) { return map[k]; });
-  if (uniq.length !== n) {
+  if (uniq.length !== n || req.mode !== 'replace') {
     sh.getRange(2, 1, n, CUST_KEYS.length).clearContent();
+    ensureRows(sh, uniq.length + 1);
     sh.getRange(2, 1, uniq.length, CUST_KEYS.length).setNumberFormat('@').setValues(uniq);
   }
   // 先把舊名單改名當備份，新名單就位後才刪掉，中途出錯也不會沒有名單
@@ -463,7 +471,7 @@ function importCommit(me, req) {
   var files = Array.isArray(req.files) ? req.files.map(cleanCell).join('、') : '';
   props().setProperties({ custAt: new Date().toISOString(), custFiles: files });
   bumpRev();
-  logOp(me.name, '匯入客戶報表', uniq.length + ' 位；' + files);
+  logOp(me.name, req.mode === 'replace' ? '匯入客戶報表（整份取代）' : '匯入客戶報表（合併）', '共 ' + uniq.length + ' 位；' + files);
   var o = load_(me, '');
   o.imported = uniq.length;
   return o;
