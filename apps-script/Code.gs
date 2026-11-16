@@ -87,8 +87,10 @@ function doPost(e) {
     return out(route(req || {}));
   } catch (err) {
     if (err && err.userMsg) return out({ ok: false, err: err.userMsg, code: err.code || '' });
+    var detail = String(err && err.message || err).slice(0, 200);
     console.error(err && err.stack || err);
-    return out({ ok: false, err: '伺服器發生錯誤，請稍後再試' });
+    logOp('系統', '錯誤：' + (req && req.action || ''), detail);
+    return out({ ok: false, err: '伺服器發生錯誤（' + detail + '）', code: 'server' });
   }
 }
 
@@ -399,7 +401,7 @@ function importStart(me) {
     var n = sh.getName();
     if (n.indexOf(STAGING_PREFIX) === 0) {
       var t = +n.split('_').pop();
-      if (!t || Date.now() - t > 3600000) ss.deleteSheet(sh);
+      if (!t || Date.now() - t > 3600000) { try { ss.deleteSheet(sh); } catch (e) {} }
     }
   });
   var id = STAGING_PREFIX + Date.now();
@@ -449,13 +451,15 @@ function importCommit(me, req) {
     sh.getRange(2, 1, n, CUST_KEYS.length).clearContent();
     sh.getRange(2, 1, uniq.length, CUST_KEYS.length).setNumberFormat('@').setValues(uniq);
   }
+  // 先把舊名單改名當備份，新名單就位後才刪掉，中途出錯也不會沒有名單
   var old = ss.getSheetByName(SHEET.CUST);
   var pos = old ? old.getIndex() : ss.getNumSheets();
-  if (old) ss.deleteSheet(old);
-  sh.setName(SHEET.CUST);
-  sh.showSheet();
-  sh.setFrozenRows(1);
+  if (old) old.setName('_舊名單_' + Date.now());
+  try { sh.setName(SHEET.CUST); } catch (e) { if (old) old.setName(SHEET.CUST); throw e; }
+  try { sh.showSheet(); sh.setFrozenRows(1); } catch (e) {}
+  if (old) { try { ss.deleteSheet(old); } catch (e) {} }
   try { ss.setActiveSheet(sh); ss.moveActiveSheet(Math.min(pos, ss.getNumSheets())); } catch (e) {}
+  SpreadsheetApp.flush();
   var files = Array.isArray(req.files) ? req.files.map(cleanCell).join('、') : '';
   props().setProperties({ custAt: new Date().toISOString(), custFiles: files });
   bumpRev();

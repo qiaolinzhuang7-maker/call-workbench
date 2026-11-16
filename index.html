@@ -981,17 +981,25 @@ $('fileInput').addEventListener('change', function(){
     });
   }).catch(function(){ toast('讀不到這個檔案，請確認是 Excel 格式', 5000); });
 });
+// 匯入時遇到 Google 偶發錯誤，自動重試兩次
+function apiRetry(action, data, tries){
+  tries = tries == null ? 2 : tries;
+  return api(action, data).catch(function(err){
+    if (tries <= 0 || (err.code && err.code !== 'server' && err.code !== 'busy') && !/連不上|連線失敗/.test(err.msg)) throw err;
+    return new Promise(function(r){ setTimeout(r, 2500); }).then(function(){ return apiRetry(action, data, tries - 1); });
+  });
+}
 function importRows(slim, names){
-  var SIZE = 2000, n = Math.ceil(slim.length / SIZE), importId;
+  var SIZE = 1000, n = Math.ceil(slim.length / SIZE), importId;
   document.body.classList.add('busy');
   toast('匯入中 0%', 60000);
-  var chain = api('importStart').then(function(r){ importId = r.importId; });
+  var chain = apiRetry('importStart').then(function(r){ importId = r.importId; });
   for (var i = 0; i < n; i++) (function(i){
     chain = chain.then(function(){
-      return api('importChunk', {importId:importId, rows:slim.slice(i * SIZE, (i + 1) * SIZE)}).then(function(){ toast('匯入中 ' + Math.round((i + 1) / n * 100) + '%', 60000); });
+      return apiRetry('importChunk', {importId:importId, rows:slim.slice(i * SIZE, (i + 1) * SIZE)}).then(function(){ toast('匯入中 ' + Math.round((i + 1) / n * 100) + '%', 60000); });
     });
   })(i);
-  return chain.then(function(){ return api('importCommit', {importId:importId, files:names}); })
+  return chain.then(function(){ return apiRetry('importCommit', {importId:importId, files:names}, 1); })
     .then(function(res){ applyLoad(res); selected.clear(); buildFilters(); applyFilters(); renderAll(); toast('匯入完成，共 ' + res.imported + ' 位客人', 5000); },
       function(err){ toast('匯入中斷：' + err.msg, 6000); })
     .then(function(){ document.body.classList.remove('busy'); });
