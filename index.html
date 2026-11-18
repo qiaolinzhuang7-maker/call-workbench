@@ -178,6 +178,9 @@ th.sorted .thBtn .arr{opacity:1}
 .drow input[type=number]{max-width:110px}
 .drow input.on,.cblock select.on{border-color:var(--accent);background:var(--accent-soft)}
 .cblock select{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:13px;margin-bottom:6px}
+.drange{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:6px 8px;font-size:13px;color:var(--muted)}
+.drange input{width:100%;min-width:0;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:14px;color:var(--ink)}
+.drange input.on{border-color:var(--accent);background:var(--accent-soft)}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .fchip{border:1px solid var(--line);background:var(--surface);color:var(--accent);border-radius:999px;padding:3px 11px;font-size:12px;cursor:pointer}
 .fchip:hover{border-color:var(--accent)}
@@ -639,7 +642,7 @@ var FILTERS = [
     desc:function(){ return (cx.lcFrom || '不限') + ' ~ ' + (cx.lcTo || '不限'); },
     render:function(){
       var chips = [[0,'今天'],[7,'一週內'],[30,'一個月內'],[90,'三個月內'],[365,'一年內']];
-      return '<div class="cblock"><div class="clabel">最近消費時間</div><div class="drow"><input type="date" data-cx="lcFrom" aria-label="最近消費起日" value="' + esc(cx.lcFrom || '') + '"><span>~</span><input type="date" data-cx="lcTo" aria-label="最近消費迄日" value="' + esc(cx.lcTo || '') + '"></div>' +
+      return '<div class="cblock"><div class="clabel">最近消費時間</div><div class="drange"><span>從</span><input type="date" data-cx="lcFrom" aria-label="最近消費起日" value="' + esc(cx.lcFrom || '') + '"><span>到</span><input type="date" data-cx="lcTo" aria-label="最近消費迄日" value="' + esc(cx.lcTo || '') + '"></div>' +
         '<div class="chips">' + chips.map(function(c){ return '<button type="button" class="fchip" data-days="' + c[0] + '">' + c[1] + '</button>'; }).join('') + '</div></div>';
     }},
   {g:'消費', key:'noBuy', label:'多少天未消費', custom:true,
