@@ -166,6 +166,19 @@ tbody tr.picked{background:var(--accent-soft)}
 .who{font-size:13px;color:var(--muted)}
 .who b{color:var(--ink);font-weight:500}
 .busy{opacity:.6;pointer-events:none}
+.cblock{margin:10px 0 12px}
+.clabel{font-size:13px;margin-bottom:6px}
+.drow{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.drow input{flex:1;min-width:0;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:13px;color:var(--ink)}
+.drow input[type=number]{max-width:110px}
+.drow input.on,.cblock select.on{border-color:var(--accent);background:var(--accent-soft)}
+.cblock select{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:13px;margin-bottom:6px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.fchip{border:1px solid var(--line);background:var(--surface);color:var(--accent);border-radius:999px;padding:3px 11px;font-size:12px;cursor:pointer}
+.fchip:hover{border-color:var(--accent)}
+.fchip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.ck{display:flex;align-items:center;gap:6px;font-size:13px;margin-top:8px;cursor:pointer}
+.ck input{width:16px;height:16px;accent-color:var(--accent)}
 .filters,.filters *{box-sizing:border-box}
 .filters{overflow-x:hidden}
 @media (max-width: 600px){
@@ -406,6 +419,7 @@ var staff = [], summary = null, meta = {}, rev = '';
 var rows = [], byId = {}, owner = {}, ownerAt = {}, lastRes = {}, myRes = {};
 var filtered = [], selected = new Set(), page = 0, loadedOnce = false;
 var state = {};
+var cx = {totMode:'range'};
 
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 function toast(msg, ms){ var t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(function(){ t.classList.remove('show'); }, ms || 3200); }
@@ -612,9 +626,37 @@ var FILTERS = [
   {g:'渠道', key:'ch0', label:'渠道分類', opts:function(){ return countOpts('ch0'); }, test:function(r, v){ return r.ch0 === v; }},
   {g:'渠道', key:'ch1', label:'一級渠道', dep:'ch0', opts:function(){ var p = state.ch0; return countOpts('ch1', p ? function(r){ return r.ch0 === p; } : null); }, test:function(r, v){ return r.ch1 === v; }},
   {g:'渠道', key:'ch2', label:'二級渠道', dep:'ch1', opts:function(){ var p0 = state.ch0, p1 = state.ch1; return countOpts('ch2', (p0 || p1) ? function(r){ return (!p0 || r.ch0 === p0) && (!p1 || r.ch1 === p1); } : null); }, test:function(r, v){ return r.ch2 === v; }},
-  {g:'消費', key:'lc', label:'最近消費', opts:function(){ return agoOpts('沒有消費紀錄'); }, test:function(r, v){ return inAgo(r.lcD, v); }},
-  {g:'消費', key:'tot', label:'消費總額', opts:function(){ return [['0-1','0 元'],['1-10000','1 – 9,999'],['10000-50000','1 萬 – 5 萬'],['50000-100000','5 萬 – 10 萬'],['100000-1e12','10 萬以上']]; },
-    test:function(r, v){ var p = v.split('-'), t = r.tot || 0; return t >= +p[0] && t < +p[1]; }},
+  {g:'消費', key:'lcDate', label:'最近消費時間', custom:true,
+    on:function(){ return !!(cx.lcFrom || cx.lcTo); },
+    test:function(r){ if (!r.lc) return false; return (!cx.lcFrom || r.lc >= cx.lcFrom) && (!cx.lcTo || r.lc <= cx.lcTo); },
+    desc:function(){ return (cx.lcFrom || '不限') + ' ~ ' + (cx.lcTo || '不限'); },
+    render:function(){
+      var chips = [[0,'今天'],[7,'一週內'],[30,'一個月內'],[90,'三個月內'],[365,'一年內']];
+      return '<div class="cblock"><div class="clabel">最近消費時間</div><div class="drow"><input type="date" data-cx="lcFrom" aria-label="最近消費起日" value="' + esc(cx.lcFrom || '') + '"><span>~</span><input type="date" data-cx="lcTo" aria-label="最近消費迄日" value="' + esc(cx.lcTo || '') + '"></div>' +
+        '<div class="chips">' + chips.map(function(c){ return '<button type="button" class="fchip" data-days="' + c[0] + '">' + c[1] + '</button>'; }).join('') + '</div></div>';
+    }},
+  {g:'消費', key:'noBuy', label:'多少天未消費', custom:true,
+    on:function(){ return +cx.noBuy > 0; },
+    test:function(r){ if (r.lcD == null) return !!cx.never; return r.lcD > +cx.noBuy; },
+    desc:function(){ return '超過 ' + cx.noBuy + ' 天沒消費' + (cx.never ? '（含從來沒消費過）' : ''); },
+    render:function(){
+      return '<div class="cblock"><div class="clabel">多少天未消費</div><div class="drow"><span>超過</span><input type="number" min="1" inputmode="numeric" data-cx="noBuy" placeholder="天數" aria-label="超過幾天沒消費" value="' + esc(cx.noBuy || '') + '"><span>天沒消費</span></div>' +
+        '<label class="ck"><input type="checkbox" data-cx="never"' + (cx.never ? ' checked' : '') + '> 包含從來沒消費過的客人</label></div>';
+    }},
+  {g:'消費', key:'totAmt', label:'消費總額', custom:true,
+    on:function(){ return cx.totMode === 'range' ? (cx.totMin !== '' && cx.totMin != null) || (cx.totMax !== '' && cx.totMax != null) : (cx.totMin !== '' && cx.totMin != null); },
+    test:function(r){ var t = r.tot || 0, a = +cx.totMin, b = +cx.totMax, hasA = cx.totMin !== '' && cx.totMin != null, hasB = cx.totMax !== '' && cx.totMax != null;
+      if (cx.totMode === 'gte') return t >= a; if (cx.totMode === 'lte') return t <= a; if (cx.totMode === 'eq') return t === a;
+      return (!hasA || t >= a) && (!hasB || t <= b); },
+    desc:function(){ var a = money(+cx.totMin), b = money(+cx.totMax);
+      return cx.totMode === 'gte' ? '大於等於 ' + a : cx.totMode === 'lte' ? '小於等於 ' + a : cx.totMode === 'eq' ? '等於 ' + a : ((cx.totMin !== '' && cx.totMin != null) ? a : '不限') + ' ~ ' + ((cx.totMax !== '' && cx.totMax != null) ? b : '不限'); },
+    render:function(){
+      var m = cx.totMode || 'range';
+      return '<div class="cblock"><div class="clabel">消費總金額</div><select data-cx="totMode" aria-label="比較方式">' +
+        [['range','自定義'],['gte','大於等於'],['lte','小於等於'],['eq','等於']].map(function(o){ return '<option value="' + o[0] + '"' + (o[0] === m ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
+        '<div class="drow"><input type="number" min="0" inputmode="numeric" data-cx="totMin" placeholder="' + (m === 'range' ? '最小金額' : '金額') + '" aria-label="金額" value="' + esc(cx.totMin == null ? '' : cx.totMin) + '">' +
+        '<span class="totMaxPart' + (m === 'range' ? '' : ' hidden') + '">-</span><input type="number" min="0" inputmode="numeric" class="totMaxPart' + (m === 'range' ? '' : ' hidden') + '" data-cx="totMax" placeholder="最大金額" aria-label="最大金額" value="' + esc(cx.totMax == null ? '' : cx.totMax) + '"></div></div>';
+    }},
   {g:'消費', key:'owe', label:'欠費', opts:function(){ return [['y','有欠費'],['n','沒有欠費']]; }, test:function(r, v){ return v === 'y' ? !!r.owe : !r.owe; }},
   {g:'個人資料', key:'g', label:'性別', opts:function(){ return countOpts('g'); }, test:function(r, v){ return r.g === v; }},
   {g:'個人資料', key:'age', label:'年齡層', opts:function(){ return [['0-25','25 歲以下'],['25-35','25–34 歲'],['35-45','35–44 歲'],['45-55','45–54 歲'],['55-65','55–64 歲'],['65-200','65 歲以上'],['none','沒有生日資料']]; },
@@ -631,6 +673,7 @@ function buildFilters(){
   FILTERS.forEach(function(f){
     if (f.sup && view !== 'sup') return;
     if (f.g !== group) { if (group) html += '</div>'; group = f.g; html += '<div class="fgroup"><h3>' + esc(group) + '</h3>'; }
+    if (f.custom) { html += f.render(); return; }
     var cur = state[f.key] || '';
     var opts = f.opts();
     if (cur && !opts.some(function(o){ return o[0] === cur; })) { delete state[f.key]; cur = ''; }
@@ -640,10 +683,53 @@ function buildFilters(){
   });
   if (group) html += '</div>';
   box.innerHTML = html;
-  var n = Object.keys(state).filter(function(k){ return state[k]; }).length + ($('q').value.trim() ? 1 : 0);
-  $('fCount').textContent = n ? '（' + n + '）' : '';
+  updateFilterMarks();
 }
+function updateFilterMarks(){
+  var n = Object.keys(state).filter(function(k){ return state[k]; }).length + ($('q').value.trim() ? 1 : 0) +
+    FILTERS.filter(function(f){ return f.custom && f.on(); }).length;
+  $('fCount').textContent = n ? '（' + n + '）' : '';
+  // 標示目前選中的快捷鍵
+  document.querySelectorAll('#filterFields .fchip').forEach(function(b){
+    var d = +b.getAttribute('data-days'), from = new Date(today); from.setDate(from.getDate() - d);
+    b.classList.toggle('on', cx.lcFrom === slimDate(from) && cx.lcTo === TODAY_STR);
+  });
+  document.querySelectorAll('#filterFields [data-cx]').forEach(function(el){
+    if (el.type === 'checkbox' || el.tagName === 'SELECT') return;
+    el.classList.toggle('on', !!el.value);
+  });
+}
+function onCustomChange(){
+  page = 0;
+  if (selected.size) { selected.clear(); toast('篩選條件改了，已清除先前的勾選'); }
+  updateFilterMarks(); applyFilters(); renderAll();
+}
+var cxTimer;
+$('filterFields').addEventListener('input', function(e){
+  var k = e.target.getAttribute('data-cx'); if (!k || e.target.type === 'checkbox' || e.target.tagName === 'SELECT') return;
+  cx[k] = e.target.value.trim();
+  clearTimeout(cxTimer); cxTimer = setTimeout(onCustomChange, e.target.type === 'number' ? 350 : 0);
+});
+$('filterFields').addEventListener('click', function(e){
+  var b = e.target.closest('.fchip'); if (!b) return;
+  var d = +b.getAttribute('data-days'), from = new Date(today); from.setDate(from.getDate() - d);
+  if (b.classList.contains('on')) { cx.lcFrom = ''; cx.lcTo = ''; }
+  else { cx.lcFrom = slimDate(from); cx.lcTo = TODAY_STR; }
+  document.querySelector('[data-cx="lcFrom"]').value = cx.lcFrom;
+  document.querySelector('[data-cx="lcTo"]').value = cx.lcTo;
+  onCustomChange();
+});
 $('filterFields').addEventListener('change', function(e){
+  var c = e.target.getAttribute('data-cx');
+  if (c) {
+    if (e.target.type === 'checkbox') cx[c] = e.target.checked;
+    else if (e.target.tagName === 'SELECT') {
+      cx[c] = e.target.value;
+      document.querySelectorAll('.totMaxPart').forEach(function(el){ el.classList.toggle('hidden', cx.totMode !== 'range'); });
+      document.querySelector('[data-cx="totMin"]').placeholder = cx.totMode === 'range' ? '最小金額' : '金額';
+    } else cx[c] = e.target.value.trim();
+    clearTimeout(cxTimer); onCustomChange(); return;
+  }
   var k = e.target.getAttribute('data-key'); if (!k) return;
   if (e.target.value) state[k] = e.target.value; else delete state[k];
   (function clearDeps(key){ FILTERS.forEach(function(f){ if (f.dep === key) { delete state[f.key]; clearDeps(f.key); } }); })(k);
@@ -651,7 +737,7 @@ $('filterFields').addEventListener('change', function(e){
 });
 var qTimer;
 $('q').addEventListener('input', function(){ clearTimeout(qTimer); qTimer = setTimeout(onFilterChange, 200); });
-$('btnReset').addEventListener('click', function(e){ e.preventDefault(); state = {}; $('q').value = ''; onFilterChange(); });
+$('btnReset').addEventListener('click', function(e){ e.preventDefault(); state = {}; cx = {totMode:'range'}; $('q').value = ''; onFilterChange(); });
 $('sortSel').addEventListener('change', function(){ page = 0; applyFilters(); renderTable(); });
 
 function onFilterChange(){
@@ -662,7 +748,7 @@ function onFilterChange(){
 
 function applyFilters(){
   var base = baseRows();
-  var active = FILTERS.filter(function(f){ return state[f.key] && !(f.sup && view !== 'sup'); });
+  var active = FILTERS.filter(function(f){ return (f.custom ? f.on() : state[f.key]) && !(f.sup && view !== 'sup'); });
   var q = $('q').value.trim().toLowerCase();
   filtered = base.filter(function(r){
     for (var i = 0; i < active.length; i++) if (!active[i].test(r, state[active[i].key])) return false;
@@ -1040,7 +1126,8 @@ $('btnExport').addEventListener('click', function(){
   if (sup && summary) stat.unshift({'業務':'未分配', '名單人數':summary.unassigned, '已撥打':'', '待撥':'', '已約診':''});
   var ws2 = XLSX.utils.json_to_sheet(stat.length ? stat : [{'業務':'', '名單人數':'', '已撥打':'', '待撥':'', '已約診':''}]); ws2['!cols'] = [{wch:16},{wch:10},{wch:8},{wch:8},{wch:8}];
   XLSX.utils.book_append_sheet(wb, ws2, '分配統計');
-  var cond = FILTERS.filter(function(f){ return state[f.key] && !(f.sup && !sup); }).map(function(f){
+  var cond = FILTERS.filter(function(f){ return (f.custom ? f.on() : state[f.key]) && !(f.sup && !sup); }).map(function(f){
+    if (f.custom) return {'條件':f.label, '設定':f.desc()};
     var o = f.opts().filter(function(x){ return x[0] === state[f.key]; })[0];
     return {'條件':f.label, '設定':o ? o[1].replace(/（\d+）$/, '') : state[f.key]};
   });
