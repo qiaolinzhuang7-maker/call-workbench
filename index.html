@@ -166,6 +166,11 @@ tbody tr.picked{background:var(--accent-soft)}
 .who{font-size:13px;color:var(--muted)}
 .who b{color:var(--ink);font-weight:500}
 .busy{opacity:.6;pointer-events:none}
+.thBtn{border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.thBtn:hover{color:var(--ink)}
+th.sorted .thBtn{color:var(--accent);font-weight:700}
+.thBtn .arr{font-size:10px;opacity:.55}
+th.sorted .thBtn .arr{opacity:1}
 .cblock{margin:10px 0 12px}
 .clabel{font-size:13px;margin-bottom:6px}
 .drow{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
@@ -260,12 +265,14 @@ tbody tr.picked{background:var(--accent-soft)}
           <div class="count" id="countLine"></div>
           <label for="sortSel" style="font-size:13px;color:var(--muted)">排序</label>
           <select id="sortSel">
-            <option value="tot">消費總額 高到低</option>
-            <option value="lc">最近消費 新到舊</option>
-            <option value="lcOld">最近消費 舊到新</option>
-            <option value="lv">最近到訪 新到舊</option>
-            <option value="age">年齡 小到大</option>
-            <option value="id">會員號</option>
+            <option value="tot:desc">消費總額 高到低</option>
+            <option value="tot:asc">消費總額 低到高</option>
+            <option value="lc:desc">最近消費 新到舊</option>
+            <option value="lc:asc">最近消費 舊到新</option>
+            <option value="lv:desc">最近到訪 新到舊</option>
+            <option value="lv:asc">最近到訪 舊到新</option>
+            <option value="age:asc">年齡 小到大</option>
+            <option value="id:asc">會員號</option>
           </select>
         </div>
         <div class="trow" id="selRow">
@@ -739,6 +746,18 @@ var qTimer;
 $('q').addEventListener('input', function(){ clearTimeout(qTimer); qTimer = setTimeout(onFilterChange, 200); });
 $('btnReset').addEventListener('click', function(e){ e.preventDefault(); state = {}; cx = {totMode:'range'}; $('q').value = ''; onFilterChange(); });
 $('sortSel').addEventListener('change', function(){ page = 0; applyFilters(); renderTable(); });
+function sortTh(key, label, cls){
+  var sp = $('sortSel').value.split(':'), on = sp[0] === key;
+  var arrow = on ? (sp[1] === 'asc' ? '▲' : '▼') : '↕';
+  return '<th class="sortable' + (cls ? ' ' + cls : '') + (on ? ' sorted' : '') + '" aria-sort="' + (on ? (sp[1] === 'asc' ? 'ascending' : 'descending') : 'none') + '"><button type="button" class="thBtn" data-sort="' + key + '">' + label + '<span class="arr">' + arrow + '</span></button></th>';
+}
+$('tbl').addEventListener('click', function(e){
+  var b = e.target.closest('[data-sort]'); if (!b) return;
+  var key = b.getAttribute('data-sort'), sp = $('sortSel').value.split(':');
+  // 第一次點：新的／高的在前；再點一次反過來
+  $('sortSel').value = key + ':' + (sp[0] === key && sp[1] === 'desc' ? 'asc' : 'desc');
+  page = 0; applyFilters(); renderTable();
+});
 
 function onFilterChange(){
   page = 0;
@@ -757,15 +776,15 @@ function applyFilters(){
   });
   // 勾選只保留仍在名單裡的客人
   if (selected.size) selected.forEach(function(id){ if (!byId[id]) selected.delete(id); });
-  var s = $('sortSel').value;
-  var cmp = {
-    tot:function(a, b){ return (b.tot || 0) - (a.tot || 0); },
-    lc:function(a, b){ return (b.lc || '').localeCompare(a.lc || ''); },
-    lcOld:function(a, b){ return (a.lc || '9999').localeCompare(b.lc || '9999'); },
-    lv:function(a, b){ return (b.lv || '').localeCompare(a.lv || ''); },
-    age:function(a, b){ return (a.age == null ? 999 : a.age) - (b.age == null ? 999 : b.age); },
-    id:function(a, b){ return a.id.localeCompare(b.id); }
-  }[s];
+  var sp = $('sortSel').value.split(':'), key = sp[0], dir = sp[1] === 'asc' ? 1 : -1;
+  // 沒有資料的客人一律排在最後
+  var val = function(r){ if (key === 'tot') return r.tot || 0; var v = key === 'id' ? r.id : r[key]; return (v === '' || v == null) ? null : v; };
+  var cmp = function(a, b){
+    var x = val(a), y = val(b);
+    if (x === null || y === null) return x === y ? 0 : x === null ? 1 : -1;
+    if (typeof x === 'number' && typeof y === 'number') return (x - y) * dir;
+    return String(x).localeCompare(String(y)) * dir;
+  };
   filtered.sort(cmp);
 }
 
@@ -854,7 +873,7 @@ function renderTable(){
     var allOn = list.every(function(r){ return selected.has(r.id); });
     h += '<th><input type="checkbox" class="cb" id="cbPage" aria-label="勾選本頁"' + (allOn ? ' checked' : '') + '></th>';
   }
-  h += '<th>姓名</th><th>電話</th>' + (sup ? '<th>所屬諮詢師</th>' : '') + '<th>渠道</th><th>成交</th><th>最近到訪</th><th>最近消費</th><th class="num">消費總額</th>';
+  h += '<th>姓名</th><th>電話</th>' + (sup ? '<th>所屬諮詢師</th>' : '') + '<th>渠道</th><th>成交</th>' + sortTh('lv', '最近到訪') + sortTh('lc', '最近消費') + sortTh('tot', '消費總額', 'num');
   h += sup ? '<th>分配給</th><th>撥打結果</th>' : '<th>撥打結果</th><th>備註</th>';
   h += '</tr></thead><tbody>';
   list.forEach(function(r){
