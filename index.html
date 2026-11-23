@@ -166,6 +166,9 @@ tbody tr.picked{background:var(--accent-soft)}
 .who{font-size:13px;color:var(--muted)}
 .who b{color:var(--ink);font-weight:500}
 .busy{opacity:.6;pointer-events:none}
+.pickList li{padding:6px 0}
+.pickList .ck{margin:0;flex:1}
+.pickAll{display:flex;gap:4px;margin:-6px 0 10px}
 .thBtn{border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .thBtn:hover{color:var(--ink)}
 th.sorted .thBtn{color:var(--accent);font-weight:700}
@@ -289,7 +292,7 @@ th.sorted .thBtn .arr{opacity:1}
           <select id="assignTo" aria-label="分配給哪位業務"></select>
           <button class="btn primary" id="btnAssign" type="button">分配</button>
           <span class="sep"></span>
-          <button class="btn" id="btnSpread" type="button">平均分給所有業務</button>
+          <button class="btn" id="btnSpread" type="button">平均分配給…</button>
           <button class="btn danger" id="btnUnassign" type="button">收回分配</button>
         </div>
       </div>
@@ -544,6 +547,7 @@ function modal(html, buttons){
 /* ---------- 讀取與整理資料 ---------- */
 function applyLoad(res){
   rev = res.rev;
+  if ('apiVer' in res || res.cust !== undefined) apiVer = res.apiVer || 1;
   staff = res.staff || [];
   summary = res.summary || null;
   meta = res.meta || {};
@@ -579,6 +583,7 @@ function applyLoad(res){
   loadedOnce = true;
 }
 var rowsAt = '';
+var apiVer = 0;
 var loading = false;
 function reload(opts){
   opts = opts || {};
@@ -972,10 +977,10 @@ function saveResult(id, patch){
 
 /* ---------- 主管：分配 ---------- */
 function seenFor(ids){ var m = {}; ids.forEach(function(id){ m[id] = owner[id] || ''; }); return m; }
-function doAssign(ids, mode, target, verb){
+function doAssign(ids, mode, target, verb, extra){
   document.body.classList.add('busy');
   toast('處理中…', 20000);
-  return api('assign', {mode:mode, target:target || '', ids:ids, seen:seenFor(ids), custAt:rowsAt}).then(function(res){
+  return api('assign', Object.assign({mode:mode, target:target || '', ids:ids, seen:seenFor(ids), custAt:rowsAt}, extra || {})).then(function(res){
     applyLoad(res);
     var r = res.result || {}, parts = [];
     if (r.added) parts.push('新分配 ' + r.added + ' 位');
@@ -1006,8 +1011,36 @@ $('btnAssign').addEventListener('click', function(){
   askConflict(ids, k).then(function(mode){ if (mode) return doAssign(pick(ids, mode), 'to', k, '分配'); });
 });
 $('btnSpread').addEventListener('click', function(){
+  if (apiVer < 2) { modal('<h3>請先更新 Apps Script</h3><p>「平均分配給勾選的業務」需要新版的 Code.gs。請把試算表裡的 Apps Script 換成新版，並部署「新版本」後再試。</p>', [{label:'知道了', value:1, primary:true}]); return; }
   var ids = Array.from(selected);
-  askConflict(ids, '其他人').then(function(mode){ if (mode) return doAssign(pick(ids, mode), 'spread', '', '平均分配'); });
+  var list = summary ? summary.staff : staff.map(function(n){ return {name:n, n:0}; });
+  var html = '<h3>平均分配 ' + ids.length + ' 位客人</h3><p>勾選要分配的業務：</p><ul class="staffList pickList">' +
+    list.map(function(s, i){ return '<li><label class="ck"><input type="checkbox" class="spPick" value="' + esc(s.name) + '" checked><span class="dot" style="background:' + COLORS[i % COLORS.length] + '"></span>' + esc(s.name) + '</label><span class="c">目前 ' + s.n + ' 位</span></li>'; }).join('') +
+    '</ul><div class="pickAll"><button type="button" class="btn quiet" id="spAll">全選</button><button type="button" class="btn quiet" id="spNone">全不選</button></div>' +
+    '<label class="ck"><input type="radio" name="spWay" value="equal" checked> 每人分一樣多（<span id="spEach"></span>）</label>' +
+    '<label class="ck"><input type="radio" name="spWay" value="balance"> 補給目前名單最少的人，讓大家總數接近</label>';
+  var p = modal(html, [{label:'取消', value:null}, {label:'下一步', value:'go', primary:true}]);
+  function upd(){
+    var n = $('dlg').querySelectorAll('.spPick:checked').length;
+    $('spEach').textContent = n ? '每人約 ' + Math.floor(ids.length / n) + (ids.length % n ? '～' + Math.ceil(ids.length / n) : '') + ' 位' : '請先勾選業務';
+  }
+  $('dlg').addEventListener('change', upd); upd();
+  p.then(function(){ $('dlg').removeEventListener('change', upd); });
+  $('spAll').onclick = function(){ $('dlg').querySelectorAll('.spPick').forEach(function(c){ c.checked = true; }); upd(); };
+  $('spNone').onclick = function(){ $('dlg').querySelectorAll('.spPick').forEach(function(c){ c.checked = false; }); upd(); };
+  var picks = [], way = 'equal';
+  $('dlg').querySelector('.dlgBtns .primary').addEventListener('click', function(){
+    picks = Array.from($('dlg').querySelectorAll('.spPick:checked')).map(function(c){ return c.value; });
+    way = ($('dlg').querySelector('input[name=spWay]:checked') || {}).value || 'equal';
+  }, true);
+  p.then(function(go){
+    if (!go) return;
+    if (!picks.length) { toast('請至少勾選一位業務'); return; }
+    return askConflict(ids, picks.length === 1 ? picks[0] : '這 ' + picks.length + ' 位業務').then(function(mode){
+      if (!mode) return;
+      return doAssign(pick(ids, mode), 'spread', '', '平均分配', {targets:picks, balance:way === 'balance'});
+    });
+  });
 });
 $('btnUnassign').addEventListener('click', function(){
   var ids = Array.from(selected).filter(function(id){ return owner[id]; });

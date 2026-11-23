@@ -293,7 +293,7 @@ function load(me, req) {
   var st = readState();
   var custAt = props().getProperty('custAt') || '';
   var meta = { custAt: custAt, files: props().getProperty('custFiles') || '' };
-  var o = { ok: true, rev: rev, me: me, staff: st.staff, summary: summarize(st), keys: CUST_KEYS, meta: meta };
+  var o = { ok: true, apiVer: 2, rev: rev, me: me, staff: st.staff, summary: summarize(st), keys: CUST_KEYS, meta: meta };
   if (me.role === '主管') {
     o.cust = (req && req.custAt && req.custAt === custAt) ? null : st.cust;
     o.asg = Object.keys(st.asg).map(function (id) { var a = st.asg[id]; return [id, a.o, a.at]; });
@@ -351,6 +351,10 @@ function assign(me, req) {
   var mode = req.mode;
   if (mode === 'to' && !staffSet[req.target]) fail('找不到這位業務，請重新整理');
   if (mode === 'spread' && !st.staff.length) fail('還沒有任何業務帳號');
+  // 平均分配的對象：主管勾選的業務（沒指定就是全部業務）
+  var pool = Array.isArray(req.targets) ? st.staff.filter(function (s) { return req.targets.indexOf(s) >= 0; }) : st.staff;
+  if (mode === 'spread' && !pool.length) fail('請至少選一位業務');
+  var share = {}; pool.forEach(function (s) { share[s] = 0; });
   var cIdx = CUST_KEYS.indexOf('s');
   var load = {}; st.staff.forEach(function (s) { load[s] = 0; });
   for (var k in st.asg) load[st.asg[k].o]++;
@@ -367,7 +371,14 @@ function assign(me, req) {
     else if (mode === 'byCons') { var s = st.cust[st.custIdx[id]][cIdx]; if (!staffSet[s]) { res.skipped++; return; } t = s; }
     else if (mode === 'spread') {
       if (cur) load[cur]--;
-      t = st.staff[0]; st.staff.forEach(function (s) { if (load[s] < load[t]) t = s; });
+      if (req.balance) {
+        // 補給名單最少的人
+        t = pool[0]; pool.forEach(function (s) { if (load[s] < load[t]) t = s; });
+      } else {
+        // 這次勾選的客人每人分一樣多
+        t = pool[0]; pool.forEach(function (s) { if (share[s] < share[t]) t = s; });
+        share[t]++;
+      }
       load[t]++;
     } else fail('不明的分配方式');
     if (t === cur) return;
