@@ -1124,6 +1124,12 @@ function importRows(slim, names, mode){
 }
 
 /* ---------- 下載 Excel ---------- */
+function saveFile(blob, name){
+  var url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = name; a.style.display = 'none';
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(url); a.remove(); }, 4000);
+}
 $('btnExport').addEventListener('click', function(){
   if (typeof XLSX === 'undefined') { toast('讀取 Excel 的元件沒有載入，請重新整理頁面'); return; }
   var sup = view === 'sup';
@@ -1158,9 +1164,21 @@ $('btnExport').addEventListener('click', function(){
   cond.unshift({'條件':'下載日期', '設定':TODAY_STR}, {'條件':'下載人', '設定':session.name}, {'條件':'人數', '設定':list.length});
   var ws3 = XLSX.utils.json_to_sheet(cond); ws3['!cols'] = [{wch:12},{wch:30}];
   XLSX.utils.book_append_sheet(wb, ws3, '篩選條件');
-  var who = sup ? (state.asg && staff.indexOf(state.asg) >= 0 ? state.asg : selected.size ? '勾選' : '篩選') : session.name;
-  var fname = 'Call客名單_' + who.replace(/[\\\/:*?"<>|]/g, '') + '_' + TODAY_STR + '.xlsx';
-  XLSX.writeFile(wb, fname, {compression:true});
+  // 檔名：Call客名單_下載人_篩選條件_人數_下載時間.xlsx
+  var parts = cond.filter(function(c){ return ['下載日期','下載人','人數'].indexOf(c['條件']) < 0; }).map(function(c){
+    if (c['條件'] === '範圍') return '勾選';
+    return c['條件'] + '-' + String(c['設定']).replace(/\s+/g, '').replace(/ ~ |~/g, '至');
+  });
+  var condStr = parts.length ? parts.join('_') : '全部';
+  if (condStr.length > 120) {
+    var keep = [], len = 0;
+    for (var i = 0; i < parts.length; i++) { if (len + parts[i].length > 110) break; keep.push(parts[i]); len += parts[i].length + 1; }
+    condStr = keep.join('_') + '_等' + parts.length + '項條件';
+  }
+  var now = new Date();
+  var stamp = TODAY_STR.replace(/-/g, '') + '-' + String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
+  var fname = ('Call客名單_' + session.name + '_' + condStr + '_' + list.length + '位_' + stamp).replace(/[\\\/:*?"<>|\r\n]/g, '') + '.xlsx';
+  saveFile(new Blob([XLSX.write(wb, {type:'array', bookType:'xlsx', compression:true})], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), fname);
   toast('已下載 ' + list.length + ' 位');
 });
 
